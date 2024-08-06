@@ -1,9 +1,9 @@
-import NxWelcome from './nx-welcome';
+import { ModuleA } from '@vissoft-react/moduleA';
 
 export function App() {
   return (
     <div>
-      <NxWelcome title="main-app" />
+      <ModuleA />
     </div>
   );
 }
