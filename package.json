@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "start": "npx nx serve main-app"
+    "start": "npx nx serve main-app",
+    "vis-add": "yarn generate-lib --",
+    "generate-lib": "npx nx g @nx/react:library {name} --directory=libs/{name} --unitTestRunner=vitest --bundler=none"
   },
   "private": true,
   "dependencies": {
