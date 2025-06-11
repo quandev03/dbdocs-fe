@@ -276,17 +276,140 @@ npx nx g @nx/react:library my-lib --directory=libs/my-lib
 
 ### Git Workflow
 
-1. Tạo branch: `git checkout -b feature/ten-tinh-nang`
+1. Tạo branch theo naming convention
 2. Code & commit với conventional format
 3. Push và tạo Pull Request
 4. Code review & merge
 
-### Branch Naming
+### 🌿 Branch Naming Rules
+
+#### Protected Branches (Chỉ admin)
+
+- `main` - Production branch
+- `develop` - Development branch
+- `test` - Testing environment
+- `uat` - User Acceptance Testing
+- `dev-common` - Common development
+
+> ⚠️ **Lưu ý**: Chỉ user có email `chunguyenchuong2014bg@gmail.com` mới được push trực tiếp lên các protected branches.
+
+#### Feature Branches (Tất cả developers)
 
 - `feature/*` - Tính năng mới
 - `bugfix/*` - Sửa lỗi
 - `hotfix/*` - Sửa lỗi khẩn cấp
 - `release/*` - Chuẩn bị release
+- `deploy/*` - Deploy scripts/configs
+- `conflict/*` - Giải quyết conflicts
+
+**Ví dụ branch names:**
+
+```bash
+feature/user-authentication
+bugfix/fix-login-error
+hotfix/security-patch
+release/v1.2.0
+```
+
+### 📝 Commit Message Rules
+
+Project sử dụng **Conventional Commits** với **commitlint** để kiểm tra format.
+
+#### Format bắt buộc:
+
+```
+type(SCOPE): subject
+```
+
+#### Types cho phép:
+
+- `feat` - Tính năng mới
+- `bug` - Sửa lỗi
+- `hotfix` - Sửa lỗi khẩn cấp
+- `release` - Release version
+
+#### Scope rules:
+
+- **Bắt buộc** phải có scope
+- Format: **UPPERCASE** với chữ cái, số và dấu gạch ngang
+- Ví dụ: `C010GESIM-0`, `USER-AUTH`, `API-V1`
+
+#### Subject rules:
+
+- **Không được để trống**
+- **Không được kết thúc bằng dấu chấm**
+- **Tối đa 150 ký tự**
+
+#### ✅ Ví dụ commit messages đúng:
+
+```bash
+feat(USER-AUTH): thêm chức năng đăng nhập
+bug(API-V1): sửa lỗi validation email
+hotfix(SECURITY): cập nhật dependencies
+release(V1-2-0): chuẩn bị release version 1.2.0
+```
+
+#### ❌ Ví dụ commit messages sai:
+
+```bash
+# Thiếu type và scope
+Thêm chức năng đăng nhập
+
+# Scope không đúng format (phải UPPERCASE)
+feat(user-auth): thêm chức năng đăng nhập
+
+# Kết thúc bằng dấu chấm
+feat(USER-AUTH): thêm chức năng đăng nhập.
+
+# Thiếu scope
+feat: thêm chức năng đăng nhập
+```
+
+### 🚫 Pre-commit Hooks
+
+Project có cấu hình **husky hooks**:
+
+1. **Pre-commit hook**:
+
+   - Kiểm tra branch naming convention
+   - Chạy build để đảm bảo code không lỗi
+   - Kiểm tra quyền push lên protected branches
+
+2. **Commit-msg hook**:
+   - Validate commit message format với commitlint
+   - Đảm bảo tuân thủ conventional commits
+
+#### Bypass hooks (Không khuyến nghị):
+
+```bash
+# Bỏ qua pre-commit hook
+git commit --no-verify -m "feat(SCOPE): commit message"
+
+# Bỏ qua commit-msg hook
+git commit --no-edit --no-verify
+```
+
+### 🔧 Troubleshooting Commit Issues
+
+#### Lỗi Branch Naming:
+
+```bash
+# Đổi tên branch hiện tại
+git branch -m new-branch-name
+
+# Hoặc tạo branch mới
+git checkout -b feature/ten-tinh-nang
+```
+
+#### Lỗi Commit Message:
+
+```bash
+# Sửa commit message cuối cùng
+git commit --amend -m "feat(SCOPE): mô tả ngắn gọn"
+
+# Hoặc commit với format đúng
+git commit -m "feat(USER-AUTH): thêm chức năng đăng nhập"
+```
 
 ---
 
