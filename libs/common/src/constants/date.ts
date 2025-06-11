@@ -1,0 +1,12 @@
+export const formatDate = 'DD/MM/YYYY';
+export const formatDateBe = 'YYYY-MM-DDTHH:mm:ss';
+export const formatTime = 'HH:mm:ss';
+export const formatTimeHHmm = 'HH:mm';
+export const formatDateTime = 'DD/MM/YYYY HH:mm:ss';
+export const formatTimeDate = 'HH:mm:ss DD/MM/YYYY';
+export const formatDateTimeHHmm = 'DD/MM/YYYY HH:mm';
+export const formatDateTimeHHmmRevert = 'HH:mm DD/MM/YYYY';
+export const formatDateV2 = 'DD-MM-YYYY';
+export const formatDateEnglish = 'YYYY/MM/DD';
+export const formatDateEnglishV2 = 'YYYY-MM-DD';
+export const formatDateISO = 'YYYY-MM-DDTHH:mm:ssZ';

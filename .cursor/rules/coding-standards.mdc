@@ -1,0 +1,61 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Coding Standards
+
+## TypeScript Guidelines
+- Luôn sử dụng TypeScript strict mode
+- Định nghĩa types/interfaces rõ ràng cho props và state
+- Sử dụng utility types khi cần thiết (Pick, Omit, Partial, etc.)
+- Avoid `any` type, sử dụng `unknown` hoặc generic types
+
+## React Best Practices
+
+### Components
+- Sử dụng functional components với hooks
+- Props destructuring ở đầu component
+- Memo hóa components khi cần thiết với React.memo
+- Custom hooks cho logic tái sử dụng
+
+### Naming Conventions
+- Components: PascalCase (UserProfile.tsx)
+- Hooks: camelCase bắt đầu với "use" (useUserData.ts)
+- Utilities: camelCase (formatDate.ts)
+- Constants: UPPER_SNAKE_CASE (API_ENDPOINTS.ts)
+- Folders: kebab-case (user-management/)
+
+### File Structure
+```
+component-name/
+├── index.ts          // Export barrel
+├── ComponentName.tsx // Main component
+├── ComponentName.test.tsx
+├── ComponentName.types.ts
+└── ComponentName.module.css (if needed)
+```
+
+## Code Organization
+- Import order: external libs → internal libs → relative imports
+- Export từ index.ts files (barrel exports)
+- Absolute imports cho libs (@libs/common/Button)
+- Relative imports cho local files (./ComponentName)
+
+## Performance
+- Sử dụng React.lazy cho code splitting
+- useMemo cho expensive calculations
+- useCallback cho function references
+- Optimize re-renders với proper dependency arrays
+
+## Styling
+- Tailwind CSS classes cho styling
+- CSS modules cho custom styles
+- Styled-components cho dynamic styling
+- Mobile-first responsive design
+
+## Error Handling
+- Try-catch blocks cho async operations
+- Error boundaries cho component errors
+- Proper error types và error messages
+- Loading states cho async operations

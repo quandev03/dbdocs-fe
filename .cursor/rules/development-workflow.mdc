@@ -1,0 +1,98 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Development Workflow
+
+## Git Workflow
+
+### Branch Naming
+- `feature/*` - Tính năng mới
+- `bugfix/*` - Sửa lỗi
+- `hotfix/*` - Sửa lỗi khẩn cấp
+- `release/*` - Chuẩn bị release
+
+### Commit Messages
+Sử dụng conventional commits:
+- `feat:` - Tính năng mới
+- `fix:` - Sửa lỗi
+- `docs:` - Cập nhật documentation
+- `style:` - Code formatting
+- `refactor:` - Refactor code
+- `test:` - Thêm/sửa tests
+- `chore:` - Maintenance tasks
+
+## Development Process
+
+### Tạo feature mới
+1. Tạo branch từ main: `git checkout -b feature/ten-tinh-nang`
+2. Code và test
+3. Commit với message rõ ràng
+4. Push và tạo Pull Request
+5. Code review
+6. Merge sau khi approved
+
+### Tạo component mới
+1. Chọn vị trí phù hợp (apps/main-app hoặc libs/)
+2. Tạo folder với naming convention
+3. Implement component với TypeScript types
+4. Viết tests
+5. Export từ index.ts
+6. Update documentation nếu cần
+
+### Testing
+- Unit tests cho components
+- Integration tests cho features
+- E2E tests cho user flows
+- Chạy `yarn test` trước khi commit
+
+## Code Review Checklist
+- [ ] TypeScript types đầy đủ
+- [ ] Tests coverage > 80%
+- [ ] Performance considerations
+- [ ] Accessibility (a11y)
+- [ ] Mobile responsive
+- [ ] Error handling
+- [ ] Loading states
+- [ ] Documentation updates
+
+## Deployment
+
+### Staging
+- Auto deploy từ develop branch
+- QA testing trên staging environment
+- User acceptance testing
+
+### Production
+- Deploy từ main branch
+- Post-deployment monitoring
+- Rollback plan sẵn sàng
+
+## Tools & Commands
+
+### Development
+```bash
+yarn dev:main          # Start development server
+yarn nx:graph          # View project dependencies
+yarn nx:reset          # Reset Nx cache
+```
+
+### Testing
+```bash
+yarn test              # Run all tests
+yarn test:watch        # Watch mode
+yarn test:coverage     # Coverage report
+```
+
+### Build & Deploy
+```bash
+yarn build:main        # Build for production
+yarn start:main        # Serve built files
+```
+
+### Library Management
+```bash
+yarn vis-add my-lib    # Create new library
+yarn nx generate ...   # Generate components/services
+```

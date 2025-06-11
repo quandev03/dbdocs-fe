@@ -1,127 +1,293 @@
-# VissoftReact
+# React Monorepo Base
 
 <a alt="Nx logo" href="https://vissoft.vn/" target="_blank" rel="noreferrer"><img src="https://vissoft.vn/upload/images/group-34075.png" width="45"></a>
 
-✨ **This workspace has been created by [Venn](https://github.com/ChuNguyenChuong)** ✨
+✨ **Workspace được tạo bởi [Venn](https://github.com/ChuNguyenChuong) - Vissoft** ✨
 
-## Project structure
+## 📋 Mục lục
 
-```
-React-Monorepo-Base
- ┣ apps // chứa các app chính
- ┃ ┗ main-app
- ┃ ┃ ┣ public
- ┃ ┃ ┃ ┗ favicon.ico
- ┃ ┃ ┣ src
- ┃ ┃ ┃ ┣ app
- ┃ ┃ ┃ ┃ ┣ app.spec.tsx
- ┃ ┃ ┃ ┃ ┣ app.tsx
- ┃ ┃ ┃ ┃ ┗ nx-welcome.tsx
- ┃ ┃ ┃ ┣ assets
- ┃ ┃ ┃ ┃ ┗ .gitkeep
- ┃ ┃ ┃ ┣ main.tsx
- ┃ ┃ ┃ ┗ styles.css
- ┃ ┃ ┣ .eslintrc.json
- ┃ ┃ ┣ index.html
- ┃ ┃ ┣ jest.config.ts
- ┃ ┃ ┣ postcss.config.js
- ┃ ┃ ┣ project.json
- ┃ ┃ ┣ tailwind.config.js
- ┃ ┃ ┣ tsconfig.app.json
- ┃ ┃ ┣ tsconfig.json
- ┃ ┃ ┣ tsconfig.spec.json
- ┃ ┃ ┗ vite.config.ts
- ┣ libs
- ┃ ┣ common // common compoment
- ┃ ┗ moduleA // other modules
- ┣ .editorconfig
- ┣ .eslintignore
- ┣ .eslintrc.json
- ┣ .gitignore
- ┣ .prettierignore
- ┣ .prettierrc
- ┣ jest.config.ts
- ┣ jest.preset.js
- ┣ nx.json
- ┣ package-lock.json
- ┣ package.json
- ┣ README.md
- ┣ tsconfig.base.json
- ┣ vitest.workspace.ts
- ┗ yarn.lock
+- [Tổng quan](#tổng-quan)
+- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
+- [Cài đặt](#cài-đặt)
+- [Scripts chính](#scripts-chính)
+- [Cấu trúc dự án](#cấu-trúc-dự-án)
+- [Development](#development)
+- [Build & Deploy](#build--deploy)
+- [Testing](#testing)
+- [Nx Commands](#nx-commands)
 
-```
+## 🎯 Tổng quan
 
-## Installation
+React Monorepo Base là template chuẩn cho các dự án React sử dụng Nx workspace. Được thiết kế với:
 
-### Install dependencies with yarn (please don't use npm as we save all package versions in yarn's lockfile):
+- **Scalability**: Dễ dàng mở rộng với nhiều apps và libraries
+- **Developer Experience**: Setup sẵn tools và best practices
+- **Performance**: Optimized builds với Vite và Nx caching
+- **Type Safety**: Full TypeScript support
 
-```
-yarn
-```
+## 🛠 Công nghệ sử dụng
 
-### Setup environment
+### Core Technologies
 
-Create local environment file by create a new file `env.local`, then copy content of .env.development into `env.local`
+- **React 18.3.1** - UI Library
+- **TypeScript 5.5.2** - Type safety
+- **Vite** - Build tool và dev server
+- **Nx 19.5.6** - Monorepo management
 
-### Run the project
+### UI & Styling
 
-```
-yarn dev
-```
+- **Tailwind CSS 3.4.3** - Utility-first CSS
+- **Styled Components 6.1.16** - CSS-in-JS
+- **Ant Design 5.26.0** - UI Component library
+- **Lucide React** - Icon library
 
-## Create a new modules in Libs
+### State Management
 
-```
-npx nx g @nx/react:library {name} --directory=libs/{name} --unitTestRunner=vitest --bundler=none
-```
+- **Zustand 5.0.5** - Lightweight state management
+- **TanStack Query 5.69.0** - Server state management
 
-## Branch prefixes
+### Testing
 
-Define the default prefixes for new branches, to allow automated workflows and make branch types clearer.
+- **Vitest** - Unit testing framework
+- **Jest** - Testing utilities
+- **React Testing Library** - Component testing
 
-1. bugfix/\*
-2. feature/\*
-3. hotfix/\*
-4. release/
+### Development Tools
 
-## Build for production
+- **ESLint** - Code linting
+- **Prettier** - Code formatting
+- **Yarn** - Package manager
 
-Run `npx nx build main-app` to build the application. The build artifacts are stored in the output directory (e.g. `dist/` or `build/`), ready to be deployed.
+## 🚀 Cài đặt
 
-## Running tasks
+### Prerequisites
 
-To execute tasks with Nx use the following syntax:
+- Node.js >= 18
+- Yarn >= 1.22
 
-```
-npx nx <target> <project> <...options>
+### Installation Steps
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd React-Monorepo-Base
+
+# Install dependencies
+yarn install
+
+# Setup environment (nếu cần)
+cp .env.example .env.local
 ```
 
-You can also run multiple targets:
+## 📝 Scripts chính
 
-```
-npx nx run-many -t <target1> <target2>
-```
+### Development
 
-..or add `-p` to filter specific projects
-
-```
-npx nx run-many -t <target1> <target2> -p <proj1> <proj2>
+```bash
+yarn dev:main          # 🚀 Chạy main-app development mode
+yarn nx:graph          # 📊 Xem dependency graph
+yarn nx:reset          # 🔄 Reset Nx cache
 ```
 
-Targets can be defined in the `package.json` or `projects.json`. Learn more [in the docs](https://nx.dev/features/run-tasks).
+### Build & Production
 
-## Set up CI!
+```bash
+yarn build:main        # 🏗️  Build main-app for production
+yarn start:main        # ▶️  Serve built files (port 3000)
+```
 
-Nx comes with local caching already built-in (check your `nx.json`). On CI you might want to go a step further.
+### Library Management
 
-- [Set up remote caching](https://nx.dev/features/share-your-cache)
-- [Set up task distribution across multiple machines](https://nx.dev/nx-cloud/features/distribute-task-execution)
-- [Learn more how to setup CI](https://nx.dev/recipes/ci)
+```bash
+yarn vis-add <name>    # 📦 Tạo library mới trong libs/
+```
 
-## Explore the project graph
+### Utilities
 
-Run `npx nx graph` to show the graph of the workspace.
-It will show tasks that you can run with Nx.
+```bash
+yarn nx:repair         # 🔧 Sửa chữa Nx workspace
+```
 
-- [Learn more about Exploring the Project Graph](https://nx.dev/core-features/explore-graph)
+## 📁 Cấu trúc dự án
+
+```
+React-Monorepo-Base/
+├── 📁 apps/                    # Ứng dụng chính
+│   └── 📁 main-app/           # React app chính
+│       ├── 📁 src/
+│       │   ├── 📁 app/        # App component và routing
+│       │   ├── 📁 assets/     # Static assets
+│       │   └── main.tsx       # Entry point
+│       ├── index.html
+│       ├── vite.config.ts     # Vite configuration
+│       └── tailwind.config.js # Tailwind config
+│
+├── 📁 libs/                   # Shared libraries
+│   ├── 📁 common/            # Common components/utils
+│   └── 📁 [other-modules]/   # Feature modules
+│
+├── 📁 dist/                   # Build output
+│   └── 📁 apps/
+│       └── 📁 main-app/      # Production build
+│
+├── 📁 .cursor/               # Cursor IDE rules
+│   └── 📁 rules/            # Development guidelines
+│
+├── 📊 package.json           # Root dependencies & scripts
+├── 📊 nx.json               # Nx workspace config
+├── 📊 tsconfig.base.json    # TypeScript base config
+└── 📋 README.md             # This file
+```
+
+## 💻 Development
+
+### Khởi động Development Server
+
+```bash
+yarn dev:main
+```
+
+- App sẽ chạy tại: http://localhost:4200
+- Hot reload enabled
+- TypeScript checking
+- ESLint integration
+
+### Tạo Library mới
+
+```bash
+yarn vis-add my-feature
+```
+
+Sẽ tạo library mới tại `libs/my-feature/` với:
+
+- TypeScript setup
+- Vitest testing
+- Export barrel (index.ts)
+
+### Best Practices
+
+- 📝 Code theo TypeScript strict mode
+- 🎨 Sử dụng Tailwind CSS cho styling
+- 🧪 Viết tests cho components
+- 📐 Follow ESLint rules
+- 🔄 Commit với conventional commit format
+
+## 🏗️ Build & Deploy
+
+### Development Build
+
+```bash
+yarn build:main
+```
+
+### Production Serve
+
+```bash
+yarn start:main
+```
+
+- Serves từ `dist/apps/main-app/`
+- Production optimized
+- Chạy trên port 3000
+
+### CI/CD Integration
+
+- Build artifacts trong `dist/`
+- Support Docker deployment
+- Environment variables từ `.env.local`
+
+## 🧪 Testing
+
+### Chạy Tests
+
+```bash
+# Tất cả tests
+yarn test
+
+# Watch mode
+yarn test --watch
+
+# Coverage report
+yarn test --coverage
+```
+
+### Testing Guidelines
+
+- Unit tests cho components
+- Integration tests cho features
+- Accessibility testing
+- Performance testing
+
+## ⚡ Nx Commands
+
+### Workspace Management
+
+```bash
+# Xem project graph
+npx nx graph
+
+# Reset cache
+npx nx reset
+
+# Repair workspace
+npx nx repair
+```
+
+### Running Tasks
+
+```bash
+# Chạy specific target
+npx nx <target> <project>
+
+# Multiple targets
+npx nx run-many -t build test
+
+# Filtered projects
+npx nx run-many -t build -p main-app
+```
+
+### Generate Commands
+
+```bash
+# Tạo React component
+npx nx g @nx/react:component MyComponent --project=main-app
+
+# Tạo library
+npx nx g @nx/react:library my-lib --directory=libs/my-lib
+```
+
+## 📚 Resources
+
+### Documentation
+
+- 📖 [Nx Documentation](https://nx.dev)
+- ⚛️ [React Documentation](https://react.dev)
+- 🎨 [Tailwind CSS](https://tailwindcss.com)
+- 📘 [TypeScript Handbook](https://typescriptlang.org)
+
+### Project Guidelines
+
+- 📋 [Coding Standards](.cursor/rules/coding-standards.mdc)
+- 🎨 [UI Components](.cursor/rules/ui-components.mdc)
+- 🔄 [Development Workflow](.cursor/rules/development-workflow.mdc)
+- 🏗️ [Project Structure](.cursor/rules/project-structure.mdc)
+
+## 🤝 Contributing
+
+### Git Workflow
+
+1. Tạo branch: `git checkout -b feature/ten-tinh-nang`
+2. Code & commit với conventional format
+3. Push và tạo Pull Request
+4. Code review & merge
+
+### Branch Naming
+
+- `feature/*` - Tính năng mới
+- `bugfix/*` - Sửa lỗi
+- `hotfix/*` - Sửa lỗi khẩn cấp
+- `release/*` - Chuẩn bị release
+
+---
+
+🏢 **Developed by [Vissoft Vietnam](https://vissoft.vn)**

@@ -1,0 +1,47 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Cấu trúc Dự án React Monorepo
+
+## Tổng quan
+Đây là một React Monorepo sử dụng Nx workspace với TypeScript, Tailwind CSS, và các công nghệ hiện đại.
+
+## Cấu trúc thư mục chính
+
+### Apps
+- [apps/main-app](mdc:apps/main-app) - Ứng dụng React chính
+  - Sử dụng Vite làm bundler
+  - Cấu hình Tailwind CSS
+  - TypeScript setup
+  - Testing với Vitest
+
+### Libs
+- [libs/common](mdc:libs/common) - Thư viện components dùng chung
+- Các modules khác sẽ được tạo trong libs/
+
+### Cấu hình gốc
+- [package.json](mdc:package.json) - Dependencies và scripts chính
+- [nx.json](mdc:nx.json) - Cấu hình Nx workspace
+- [tsconfig.base.json](mdc:tsconfig.base.json) - TypeScript base config
+
+## Scripts quan trọng
+
+### Development
+- `yarn dev:main` - Chạy main-app ở development mode
+- `yarn nx:graph` - Xem dependency graph
+
+### Build & Deploy
+- `yarn build:main` - Build main-app
+- `yarn start:main` - Chạy bản build (serve static files)
+
+### Tạo library mới
+- `yarn vis-add {name}` - Tạo library mới trong libs/
+
+## Quy tắc làm việc
+- Sử dụng yarn thay vì npm
+- Code theo TypeScript strict mode
+- Follow ESLint và Prettier config
+- Components dùng chung đặt trong libs/common
+- Mỗi feature lớn tạo library riêng trong libs/

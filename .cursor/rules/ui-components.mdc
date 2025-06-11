@@ -1,0 +1,106 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# UI Components Guidelines
+
+## Component Design Principles
+- Single Responsibility: Mỗi component chỉ làm một việc
+- Composition over Inheritance
+- Props interface rõ ràng và intuitive
+- Consistent API design across components
+
+## Styling System
+
+### Tailwind CSS
+- Ưu tiên sử dụng Tailwind utility classes
+- Custom utilities cho patterns lặp lại
+- Responsive design với mobile-first approach
+- Dark mode support với dark: variants
+
+### Component Structure
+```tsx
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  loading?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  disabled = false,
+  loading = false,
+  children,
+  onClick,
+  ...props
+}) => {
+  // Component implementation
+};
+```
+
+## State Management
+- Local state với useState/useReducer
+- Global state với Zustand
+- Server state với TanStack Query
+- Form state với controlled components
+
+## Accessibility (A11y)
+- Semantic HTML elements
+- ARIA attributes khi cần
+- Keyboard navigation support
+- Screen reader friendly
+- Focus management
+- Color contrast compliance
+
+## Performance Optimization
+- React.memo cho components expensive
+- useMemo cho calculations
+- useCallback cho event handlers
+- Lazy loading cho components lớn
+- Image optimization
+
+## Common UI Patterns
+
+### Layout Components
+- Container - Max width và centering
+- Grid - Flexible grid system
+- Stack - Vertical/horizontal spacing
+- Flex - Flexbox utilities
+
+### Interactive Components
+- Button - All variants và states
+- Input - Form inputs với validation
+- Modal - Overlay với backdrop
+- Dropdown - Select và menu patterns
+
+### Feedback Components
+- Toast - Success/error notifications
+- Loading - Spinner và skeleton screens
+- Empty State - No data scenarios
+- Error Boundary - Error handling UI
+
+## Component Testing
+- Render testing với React Testing Library
+- User interaction testing
+- Accessibility testing
+- Visual regression testing với Storybook
+- Props validation testing
+
+## Documentation
+- JSDoc comments cho props
+- Storybook stories cho showcase
+- Usage examples trong README
+- API documentation
+
+## Design Tokens
+- Colors: Primary, secondary, neutral palettes
+- Typography: Font sizes, weights, line heights
+- Spacing: Consistent spacing scale
+- Shadows: Elevation system
+- Border radius: Consistent rounding
+- Breakpoints: Responsive design points
