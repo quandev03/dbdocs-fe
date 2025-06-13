@@ -56,7 +56,7 @@ React Monorepo Base là template chuẩn cho các dự án React sử dụng Nx 
 
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
-- **Yarn** - Package manager
+- **Yarn** - Package manager√
 
 ## 🚀 Cài đặt
 

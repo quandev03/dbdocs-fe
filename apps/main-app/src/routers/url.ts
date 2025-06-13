@@ -5,6 +5,12 @@ export const pathRoutes = {
   login: '/login',
   forgotPassword: '/forgot-password',
   notFound: '/not-found',
+  authCallback: '/auth/callback',
+  githubCallback: '/login/oauth2/code/github',
+  googleCallback: '/login/oauth2/code/google',
+  oauthGithubCallback: '/oauth2/authorization/github/callback',
+  oauthGoogleCallback: '/oauth2/authorization/google/callback',
+  share: '/share',
 
   // Quản trị hệ thống
   accountAuthorization: '/account-authorization',

@@ -9,6 +9,7 @@ import { ActionsTypeEnum } from '../types';
 import { HeaderAccount, StyledLayout } from '../styled';
 import { protectedRoutes } from '../../../routers/routes';
 import { pathRoutes } from '../../../routers/url';
+import AuthRedirect from '../../../components/AuthRedirect';
 
 const { Header, Content } = Layout;
 
@@ -59,10 +60,7 @@ const LayoutDashboard = memo(() => {
     );
   }, [urlsActive, location]);
 
-  if (!isAuthenticated) {
-    return <Navigate to={pathRoutes.login} />;
-  }
-  return (
+  const LayoutContent = () => (
     <StyledLayout>
       <LeftMenu />
       <Layout className="site-layout">
@@ -85,6 +83,17 @@ const LayoutDashboard = memo(() => {
         </Content>
       </Layout>
     </StyledLayout>
+  );
+
+  // Wrap with AuthRedirect to ensure authentication
+  return (
+    <AuthRedirect
+      authenticatedRedirect="/"
+      unauthenticatedRedirect="/login"
+      requireAuth={true}
+    >
+      <LayoutContent />
+    </AuthRedirect>
   );
 });
 

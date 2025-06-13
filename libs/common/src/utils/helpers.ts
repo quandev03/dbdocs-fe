@@ -79,15 +79,17 @@ export const formatBytes = (bytes: number) => {
 export const getUrlsActive = (menuData: MenuObjectItem[]) => {
   const allUrlsActive: string[] = [];
   menuData.forEach((item) => {
-    allUrlsActive.push(item.uri);
-    if (item.actions?.includes(ActionsTypeEnum.CREATE)) {
-      allUrlsActive.push(item.uri + '/add');
-    }
-    if (item.actions?.includes(ActionsTypeEnum.READ)) {
-      allUrlsActive.push(item.uri + '/view/:id');
-    }
-    if (item.actions?.includes(ActionsTypeEnum.UPDATE)) {
-      allUrlsActive.push(item.uri + '/edit/:id');
+    if (item.uri) {
+      allUrlsActive.push(item.uri);
+      if (item.actions?.includes(ActionsTypeEnum.CREATE)) {
+        allUrlsActive.push(item.uri + '/add');
+      }
+      if (item.actions?.includes(ActionsTypeEnum.UPDATE)) {
+        allUrlsActive.push(item.uri + '/edit/:id');
+      }
+      if (item.actions?.includes(ActionsTypeEnum.READ)) {
+        allUrlsActive.push(item.uri + '/view/:id');
+      }
     }
   });
   return allUrlsActive;

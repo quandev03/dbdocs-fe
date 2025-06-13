@@ -8,7 +8,7 @@ import { AnyElement } from '../types';
 import { useGetLoaderData } from '../../../hooks/useLoaderData';
 
 const LeftMenu: FC = memo(() => {
-  const { menus } = useGetLoaderData();
+  const loaderData = useGetLoaderData();
   const { pathname } = useLocation();
   const { collapsedMenu, toggleCollapsedMenu } = useConfigAppStore();
   const [openMenuKeys, setOpenMenuKeys] = useState<string[]>([]);
@@ -89,10 +89,14 @@ const LeftMenu: FC = memo(() => {
   }, [pathname, orgCode, id]);
 
   const menusRender = useMemo(() => {
-    return menus.map((item: AnyElement) =>
-      item.key === pathname ? { ...item, label: item?.label.props.title } : item
-    );
-  }, [menus, pathname]);
+    const menus = loaderData?.menus || [];
+    return menus.map((item: AnyElement) => {
+      if (item.key === pathname && item.label && typeof item.label === 'object' && item.label.props && item.label.props.title) {
+        return { ...item, label: item.label.props.title };
+      }
+      return item;
+    });
+  }, [loaderData?.menus, pathname]);
 
   const handleChange = () => {
     toggleCollapsedMenu();
