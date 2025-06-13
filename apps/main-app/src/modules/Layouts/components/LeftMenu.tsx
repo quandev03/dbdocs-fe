@@ -89,7 +89,7 @@ const LeftMenu: FC = memo(() => {
   }, [pathname, orgCode, id]);
 
   const menusRender = useMemo(() => {
-    return menus.map((item: AnyElement) =>
+    return menus?.map((item: AnyElement) =>
       item.key === pathname ? { ...item, label: item?.label.props.title } : item
     );
   }, [menus, pathname]);

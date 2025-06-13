@@ -36,32 +36,38 @@ const LayoutDashboard = memo(() => {
     setUrlsActive(allUrlsActive);
   }, [menuData, setUrlsActive]);
 
-  const RenderContent = useMemo(() => {
-    const checkUrl = urlsActive.filter((e) => e !== '/');
-    const hasAccess = () => {
-      if (!checkUrl.length) return false;
-      const currentPath = location.pathname;
-      return protectedRoutes.some((route) => {
-        if (!route.path) return false;
-        return checkUrl.some((url) => {
-          const dynamicUrlPattern = url.includes(':id')
-            ? url.replace(':id', '[^/]+') // Thay thế :id bằng regex cho bất kỳ chuỗi nào không chứa '/'
-            : url;
-          const regex = new RegExp(`^${dynamicUrlPattern}`);
-          return regex.test(currentPath);
-        });
-      });
-    };
-    return hasAccess() || pathRoutes.home === location.pathname ? (
-      <Outlet />
-    ) : (
-      <Navigate to={pathRoutes.notFound} replace={true} />
-    );
-  }, [urlsActive, location]);
+  const RenderContent = useMemo(
+    () => {
+      // const checkUrl = urlsActive.filter((e) => e !== '/');
+      // const hasAccess = () => {
+      //   if (!checkUrl.length) return false;
+      //   const currentPath = location.pathname;
+      //   return protectedRoutes.some((route) => {
+      //     if (!route.path) return false;
+      //     return checkUrl.some((url) => {
+      //       const dynamicUrlPattern = url.includes(':id')
+      //         ? url.replace(':id', '[^/]+') // Thay thế :id bằng regex cho bất kỳ chuỗi nào không chứa '/'
+      //         : url;
+      //       const regex = new RegExp(`^${dynamicUrlPattern}`);
+      //       return regex.test(currentPath);
+      //     });
+      //   });
+      // };
+      return <Outlet></Outlet>;
+      // hasAccess() || pathRoutes.home === location.pathname ? (
+      //   <Outlet />
+      // ) : (
+      //   <Navigate to={pathRoutes.notFound} replace={true} />
+      // );
+    },
+    [
+      // urlsActive, location
+    ]
+  );
 
-  if (!isAuthenticated) {
-    return <Navigate to={pathRoutes.login} />;
-  }
+  // if (!isAuthenticated) {
+  //   return <Navigate to={pathRoutes.login} />;
+  // }
   return (
     <StyledLayout>
       <LeftMenu />
