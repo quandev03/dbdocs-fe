@@ -1,0 +1,1225 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Layout, Space, Typography, Spin, message, Alert, Modal, Select, Dropdown, Menu, Drawer, List, Avatar, Tag, Tooltip, Radio, Input, Form, Divider, Popover } from 'antd';
+import { 
+  DownloadOutlined, 
+  CopyOutlined, 
+  ArrowLeftOutlined, 
+  LockOutlined, 
+  ExclamationCircleOutlined,
+  ShareAltOutlined,
+  HistoryOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  CloudUploadOutlined,
+  DownOutlined,
+  RollbackOutlined,
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  UserAddOutlined,
+  MailOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  MoreOutlined,
+  UserOutlined
+} from '@ant-design/icons';
+import { useParams, useNavigate } from 'react-router-dom';
+import { apiService } from '../../../services/apiService';
+import { DbmlEditor } from '../components/DbmlEditor';
+import { checkProjectPermission, PermissionLevel, getPermissionText } from '../services/projectAccess.service';
+import { getLatestChangelog, getProjectVersions, VersionInfo } from '../services/changelog.service';
+import useWindowSize from '../../../hooks/useWindowSize';
+import moment from 'moment';
+
+const { Header, Content } = Layout;
+const { Title, Text } = Typography;
+const { confirm } = Modal;
+
+const SAMPLE_DBML = `// Creating tables
+// You can define the tables with full schema names
+Table ecommerce.merchants {
+  id int [pk]
+  country_code int [Ref: > countries.code]
+  merchant_name varchar
+  
+  "created_at" varchar
+  admin_id int [Ref: > U.id, not null]
+  Indexes {
+    (id, country_code) [pk]
+  }
+}
+
+// If schema name is omitted, it will default to "public" schema.
+Table users as U {
+  id int [pk, increment] // auto-increment
+  full_name varchar
+  created_at timestamp
+  country_code int [Ref: > countries.code]
+}
+
+Table countries {
+  code int [pk]
+  name varchar
+  continent_name varchar
+}
+
+// You can also define relationships separately if preferred
+// > many-to-one; < one-to-many; - one-to-one; <> many-to-many
+// Ref: U.country_code > countries.code
+// Ref: ecommerce.merchants.country_code > countries.code`;
+
+// Define the project data interface
+interface ProjectData {
+  projectId: string;
+  projectCode: string;
+  dbmlContent?: string;
+  description?: string;
+}
+
+// Define API response interface
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  statusText: string;
+}
+
+// Define Changelog interface
+interface ChangelogItem {
+  changeLogId: string;
+  projectId: string;
+  content: string;
+  codeChangeLog: string;
+  createdDate: number;
+  createdBy: string;
+  modifiedDate: number;
+  modifiedBy: string;
+  creatorName: string;
+  creatorAvatarUrl: string;
+  modifierName: string;
+  modifierAvatarUrl: string;
+}
+
+// Enum for database dialects
+enum DatabaseDialect {
+  MySQL = 1,
+  MariaDB = 2,
+  PostgreSQL = 3,
+  OracleDB = 4,
+  SQLServer = 5
+}
+
+// Interface for DDL generation response
+interface DDLResponse {
+  projectId: string;
+  fromVersion?: number | null;
+  toVersion?: number;
+  dialect: number;
+  ddlScript: string;
+}
+
+// Enum for export action
+enum ExportAction {
+  Download = 'download',
+  Copy = 'copy'
+}
+
+// Interface for share form
+interface ShareFormValues {
+  recipient: string;
+  permission: PermissionLevel.EDIT | PermissionLevel.VIEW;
+}
+
+// Interface for project access response
+interface ProjectAccessResponse {
+  id: string;
+  projectId: string;
+  identifier: string;
+  permission: number;
+  userEmail: string;
+  userName: string;
+  avatarUrl: string;
+  createdDate: string;
+  createdBy: string;
+}
+
+// Interface for project access list
+interface ProjectAccessItem extends ProjectAccessResponse {}
+
+export const DbmlEditorPage: React.FC = () => {
+  const [dbmlCode, setDbmlCode] = useState<string>('');
+  const [projectName, setProjectName] = useState<string>('');
+  const [projectCode, setProjectCode] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [permissionLevel, setPermissionLevel] = useState<number | null>(null);
+  const [permissionChecked, setPermissionChecked] = useState<boolean>(false);
+  const [versions, setVersions] = useState<VersionInfo[]>([]);
+  const [currentVersion, setCurrentVersion] = useState<string>('');
+  const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [showPermissionAlert, setShowPermissionAlert] = useState<boolean>(true);
+  const [historyDrawerVisible, setHistoryDrawerVisible] = useState<boolean>(false);
+  const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+  const [changelogLoading, setChangelogLoading] = useState<boolean>(false);
+  const [currentChangelogCode, setCurrentChangelogCode] = useState<string>('');
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+  const { width } = useWindowSize();
+  const [pendingDbmlChange, setPendingDbmlChange] = useState<string | null>(null);
+  const [confirmModalVisible, setConfirmModalVisible] = useState<boolean>(false);
+  const [selectedChangelog, setSelectedChangelog] = useState<ChangelogItem | null>(null);
+  const [exportDDLModalVisible, setExportDDLModalVisible] = useState<boolean>(false);
+  const [selectedDialect, setSelectedDialect] = useState<DatabaseDialect>(DatabaseDialect.MySQL);
+  const [generatingDDL, setGeneratingDDL] = useState<boolean>(false);
+  const [exportAction, setExportAction] = useState<ExportAction>(ExportAction.Download);
+  const [generatedDDL, setGeneratedDDL] = useState<string>('');
+  const [shareModalVisible, setShareModalVisible] = useState<boolean>(false);
+  const [inviting, setInviting] = useState<boolean>(false);
+  const [form] = Form.useForm<ShareFormValues>();
+  const [projectAccesses, setProjectAccesses] = useState<ProjectAccessItem[]>([]);
+  const [loadingAccesses, setLoadingAccesses] = useState<boolean>(false);
+  const [editAccessId, setEditAccessId] = useState<string | null>(null);
+  const [editPermission, setEditPermission] = useState<number>(1);
+  const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  const [selectedAccess, setSelectedAccess] = useState<ProjectAccessItem | null>(null);
+  const [processingAction, setProcessingAction] = useState<boolean>(false);
+
+  // Determine if we should show text labels based on screen width
+  const showLabels = width > 1100;
+
+  useEffect(() => {
+    if (projectId) {
+      checkPermissionAndFetchData();
+    }
+  }, [projectId]);
+
+  // Hiển thị thông báo quyền trong 3 giây
+  useEffect(() => {
+    if (permissionLevel !== null) {
+      setShowPermissionAlert(true);
+      const timer = setTimeout(() => {
+        setShowPermissionAlert(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [permissionLevel]);
+
+  // Kiểm tra quyền và tải dữ liệu ban đầu
+  const checkPermissionAndFetchData = async () => {
+    if (!projectId) return;
+    
+    setLoading(true);
+    try {
+      // Kiểm tra quyền truy cập
+      const permissionResponse = await checkProjectPermission(projectId);
+      console.log("Permission check response:", permissionResponse);
+      setPermissionLevel(permissionResponse.permissionLevel);
+      setPermissionChecked(true);
+      
+      // Nếu không có quyền truy cập, không cần tải dữ liệu dự án
+      if (permissionResponse.permissionLevel === PermissionLevel.DENIED) {
+        setLoading(false);
+        return;
+      }
+      
+      // Nếu có quyền truy cập, tải dữ liệu dự án, changelog và version
+      await Promise.all([
+        fetchProjectData(),
+        fetchChangelogs(),
+        fetchVersions()
+      ]);
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      message.error('Failed to check project access');
+      setLoading(false);
+    }
+  };
+
+  // Tải thông tin cơ bản của dự án
+  const fetchProjectData = async () => {
+    if (!projectId) return;
+    
+    try {
+      // Replace with your actual API endpoint
+      const response = await apiService.get<ApiResponse<ProjectData>>(`/api/v1/projects/${projectId}`);
+      
+      const projectData = response.data;
+      if (projectData) {
+        setProjectName(projectData.projectCode || 'Untitled Project');
+        setProjectCode(projectData.projectCode || '');
+      }
+    } catch (error) {
+      console.error('Error fetching project data:', error);
+      message.error('Failed to load project data');
+    }
+  };
+
+  // Tải danh sách phiên bản
+  const fetchVersions = async () => {
+    if (!projectId) return;
+    
+    try {
+      const versionsList = await getProjectVersions(projectId);
+      setVersions(versionsList);
+      
+      // Nếu có phiên bản, tải nội dung của phiên bản mới nhất
+      if (versionsList.length > 0) {
+        const latestVersion = versionsList[0]; // API trả về danh sách đã sắp xếp theo thứ tự mới nhất
+        setDbmlCode(latestVersion.content);
+        setCurrentVersion(latestVersion.id);
+        setHasChanges(false);
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching versions:', error);
+      message.error('Failed to load version history');
+      setLoading(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(dbmlCode);
+    message.success('DBML code copied to clipboard');
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([dbmlCode], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName || 'diagram'}.dbml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSave = async () => {
+    if (!projectId) return;
+    
+    setLoading(true);
+    try {
+      // Lưu nội dung DBML vào dự án
+      await apiService.put(`/api/v1/projects/${projectId}`, {
+        dbmlContent: dbmlCode
+      });
+      
+      // Tạo changelog mới
+      await apiService.post('/api/v1/changelogs', {
+        projectId: projectId,
+        content: dbmlCode
+      });
+      
+      message.success('Project saved successfully and new changelog created');
+      setHasChanges(false);
+      
+      // Xóa thông tin version đã chọn để hiển thị changelog mới nhất
+      setCurrentVersion('');
+      
+      // Refresh version history và changelog sau khi lưu
+      await Promise.all([
+        fetchVersions(),
+        fetchChangelogs()
+      ]);
+    } catch (error) {
+      console.error('Error saving project:', error);
+      message.error('Failed to save project');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    navigate(-1); // Go back to previous page
+  };
+
+  const handleDbmlChange = (newCode: string) => {
+    setDbmlCode(newCode);
+    setHasChanges(true);
+  };
+
+  // Xử lý khi người dùng muốn quay về một changelog
+  const handleApplyChangelog = (changelog: ChangelogItem) => {
+    // Không cần xác nhận nếu đang ở changelog này
+    if (changelog.codeChangeLog === currentChangelogCode) {
+      return;
+    }
+    
+    // Lưu changelog được chọn và hiển thị popup xác nhận
+    setSelectedChangelog(changelog);
+    setConfirmModalVisible(true);
+  };
+
+  // Xác nhận quay về changelog
+  const confirmChangelogRevert = () => {
+    if (selectedChangelog) {
+      setDbmlCode(selectedChangelog.content);
+      setCurrentChangelogCode(selectedChangelog.codeChangeLog);
+      setHasChanges(false);
+      message.success(`Reverted to v${selectedChangelog.codeChangeLog}`);
+      setHistoryDrawerVisible(false);
+      
+      // Khi quay về một changelog, xóa thông tin về version đã chọn
+      setCurrentVersion('');
+    }
+    setConfirmModalVisible(false);
+    setSelectedChangelog(null);
+  };
+
+  // Hủy quay về changelog
+  const cancelChangelogRevert = () => {
+    setSelectedChangelog(null);
+    setConfirmModalVisible(false);
+  };
+
+  // Xử lý khi chọn version
+  const handleVersionChange = async (versionId: string) => {
+    // Nếu có thay đổi chưa lưu, hiển thị xác nhận
+    if (hasChanges) {
+      confirm({
+        title: 'Unsaved Changes',
+        icon: <ExclamationCircleOutlined />,
+        content: 'You have unsaved changes. Switching versions will discard these changes. Do you want to continue?',
+        onOk: async () => {
+          await loadVersionContent(versionId);
+        },
+        onCancel: () => {
+          // Reset lại giá trị select box
+          setCurrentVersion(currentVersion);
+        },
+      });
+    } else {
+      await loadVersionContent(versionId);
+    }
+  };
+
+  // Tải nội dung của một phiên bản cụ thể
+  const loadVersionContent = async (versionId: string) => {
+    setLoading(true);
+    try {
+      // Tìm phiên bản trong danh sách đã tải
+      const selectedVersion = versions.find(v => v.id === versionId);
+      
+      if (selectedVersion) {
+        setDbmlCode(selectedVersion.content);
+        setCurrentVersion(versionId);
+        setHasChanges(false);
+        // Khi chọn version, xóa thông tin về changelog hiện tại
+        setCurrentChangelogCode('');
+      }
+    } catch (error) {
+      console.error('Error loading version content:', error);
+      message.error('Failed to load version content');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch changelogs
+  const fetchChangelogs = async () => {
+    if (!projectId) return;
+    
+    setChangelogLoading(true);
+    try {
+      const response = await apiService.get<ChangelogItem[]>(`/api/v1/changelogs/project/${projectId}`);
+      setChangelogs(response);
+      
+      // Lấy changelog mới nhất nếu có
+      if (response.length > 0) {
+        const latestChangelog = response[0]; // Giả sử API trả về danh sách đã sắp xếp theo thứ tự mới nhất
+        
+        // Chỉ cập nhật nội dung và hiển thị changelog mới nhất nếu không có version được chọn
+        if (!currentVersion) {
+          setDbmlCode(latestChangelog.content);
+          setCurrentChangelogCode(latestChangelog.codeChangeLog);
+          setHasChanges(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching changelogs:', error);
+      message.error('Failed to load changelog history');
+    } finally {
+      setChangelogLoading(false);
+    }
+  };
+
+  // Handle history button click
+  const handleHistoryClick = () => {
+    setHistoryDrawerVisible(true);
+    fetchChangelogs();
+  };
+
+  // Format date for display
+  const formatDate = (timestamp: number) => {
+    return moment(timestamp).format('MMM DD, YYYY HH:mm');
+  };
+
+  // Handle export DDL button click
+  const handleExportDDLClick = () => {
+    setExportDDLModalVisible(true);
+  };
+
+  // Handle dialect change
+  const handleDialectChange = (value: number) => {
+    setSelectedDialect(value as DatabaseDialect);
+  };
+
+  // Handle export action change
+  const handleExportActionChange = (e: any) => {
+    setExportAction(e.target.value);
+  };
+
+  // Handle copy DDL script
+  const handleCopyDDL = () => {
+    navigator.clipboard.writeText(generatedDDL);
+    message.success('DDL script copied to clipboard');
+    setExportDDLModalVisible(false);
+  };
+
+  // Generate DDL
+  const handleGenerateDDL = async () => {
+    if (!projectId) {
+      message.error('Project ID is missing');
+      return;
+    }
+    
+    setGeneratingDDL(true);
+    try {
+      let response: DDLResponse;
+      
+      // Determine which API to call based on whether we're using version or changelog
+      if (currentVersion) {
+        // Find the version number from the selected version
+        const selectedVersion = versions.find(v => v.id === currentVersion);
+        if (!selectedVersion || selectedVersion.codeVersion === undefined) {
+          throw new Error('Version information is missing');
+        }
+        
+        // Call API for version-based DDL
+        response = await apiService.post<DDLResponse>('/api/v1/versions/generate-single-ddl', {
+          projectId: projectId,
+          versionNumber: selectedVersion.codeVersion,
+          dialect: selectedDialect
+        });
+      } else if (currentChangelogCode) {
+        // Call API for changelog-based DDL
+        response = await apiService.post<DDLResponse>('/api/v1/versions/generate-changelog-ddl', {
+          projectId: projectId,
+          changeLogCode: currentChangelogCode,
+          dialect: selectedDialect
+        });
+      } else {
+        throw new Error('No version or changelog selected');
+      }
+      
+      // Process the DDL script based on selected action
+      if (response && response.ddlScript) {
+        setGeneratedDDL(response.ddlScript);
+        
+        if (exportAction === ExportAction.Download) {
+          // Download the DDL script
+          const dialectName = getDatabaseDialectName(selectedDialect);
+          const fileName = `${projectCode || 'diagram'}_${dialectName.toLowerCase()}.sql`;
+          downloadTextAsFile(response.ddlScript, fileName);
+          message.success('DDL script generated and downloaded successfully');
+          setExportDDLModalVisible(false);
+        } else {
+          // Just show success message, user will copy manually
+          message.success('DDL script generated successfully');
+        }
+      } else {
+        throw new Error('Failed to generate DDL script');
+      }
+    } catch (error) {
+      console.error('Error generating DDL:', error);
+      message.error('Failed to generate DDL script');
+    } finally {
+      setGeneratingDDL(false);
+    }
+  };
+
+  // Helper function to get database dialect name
+  const getDatabaseDialectName = (dialect: DatabaseDialect): string => {
+    switch (dialect) {
+      case DatabaseDialect.MySQL:
+        return 'MySQL';
+      case DatabaseDialect.MariaDB:
+        return 'MariaDB';
+      case DatabaseDialect.PostgreSQL:
+        return 'PostgreSQL';
+      case DatabaseDialect.OracleDB:
+        return 'OracleDB';
+      case DatabaseDialect.SQLServer:
+        return 'SQLServer';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  // Helper function to download text as file
+  const downloadTextAsFile = (text: string, fileName: string) => {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Fetch project accesses
+  const fetchProjectAccesses = async () => {
+    if (!projectId) return;
+    
+    setLoadingAccesses(true);
+    try {
+      const response = await apiService.get<ProjectAccessItem[]>(`/api/v1/project-access/list/${projectId}`);
+      
+      if (response && Array.isArray(response)) {
+        setProjectAccesses(response);
+      }
+    } catch (error: any) {
+      console.error('Error fetching project accesses:', error);
+      
+      if (error.response?.status === 403) {
+        message.error('You do not have permission to view shared users');
+      } else {
+        message.error('Failed to load shared users');
+      }
+    } finally {
+      setLoadingAccesses(false);
+    }
+  };
+
+  // Handle share button click
+  const handleShareClick = () => {
+    setShareModalVisible(true);
+    fetchProjectAccesses();
+  };
+
+  // Handle share invite
+  const handleShareInvite = async (values: ShareFormValues) => {
+    if (!projectId) {
+      message.error('Project ID is missing');
+      return;
+    }
+    
+    setInviting(true);
+    try {
+      // Call API to invite user
+      const response = await apiService.post<ProjectAccessResponse>('/api/v1/project-access/add-user', {
+        projectId: projectId,
+        emailOrUsername: values.recipient,
+        permission: values.permission === PermissionLevel.VIEW ? 1 : 2 // 1: View, 2: Edit
+      });
+      
+      // If successful, show success message with user information
+      if (response && response.userName) {
+        const displayName = response.userName;
+        const displayEmail = response.userEmail ? ` (${response.userEmail})` : '';
+        message.success(`${displayName}${displayEmail} has been invited to the project`);
+      } else {
+        message.success(`Invitation sent to ${values.recipient}`);
+      }
+      
+      form.resetFields();
+      // Refresh the list of project accesses
+      fetchProjectAccesses();
+    } catch (error: any) {
+      console.error('Error inviting user:', error);
+      
+      // Handle different error cases
+      if (error.response) {
+        switch (error.response.status) {
+          case 404:
+            message.error('User not found. Please check the email or username.');
+            break;
+          case 403:
+            message.error('You do not have permission to invite users to this project.');
+            break;
+          case 400:
+            message.error('This user already has access to the project.');
+            break;
+          case 500:
+            message.error('Server error. Please try again later.');
+            break;
+          default:
+            message.error('Failed to send invitation');
+        }
+      } else {
+        message.error('Failed to send invitation. Please check your connection.');
+      }
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  // Show edit modal
+  const showEditModal = (access: ProjectAccessItem) => {
+    setSelectedAccess(access);
+    setEditPermission(access.permission);
+    setEditModalVisible(true);
+  };
+
+  // Handle edit permission
+  const handleEditPermission = async () => {
+    if (!selectedAccess || !projectId) return;
+    
+    setProcessingAction(true);
+    try {
+      await apiService.put('/api/v1/project-access/permission', {
+        projectId: projectId,
+        identifier: selectedAccess.identifier,
+        permission: editPermission
+      });
+      
+      const displayName = selectedAccess.userName || 'User';
+      const displayEmail = selectedAccess.userEmail ? ` (${selectedAccess.userEmail})` : '';
+      message.success(`Permission updated for ${displayName}${displayEmail}`);
+      setEditModalVisible(false);
+      // Refresh the list
+      fetchProjectAccesses();
+    } catch (error: any) {
+      console.error('Error updating permission:', error);
+      
+      if (error.response?.status === 403) {
+        message.error('You do not have permission to change user access');
+      } else {
+        message.error('Failed to update permission');
+      }
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // Show delete modal
+  const showDeleteModal = (access: ProjectAccessItem) => {
+    setSelectedAccess(access);
+    setDeleteModalVisible(true);
+  };
+
+  // Handle delete access
+  const handleDeleteAccess = async () => {
+    if (!selectedAccess || !projectId) return;
+    
+    setProcessingAction(true);
+    try {
+      await apiService.delete(`/api/v1/project-access/${projectId}/${selectedAccess.identifier}`);
+      
+      const displayName = selectedAccess.userName || 'User';
+      const displayEmail = selectedAccess.userEmail ? ` (${selectedAccess.userEmail})` : '';
+      message.success(`Access removed for ${displayName}${displayEmail}`);
+      setDeleteModalVisible(false);
+      // Refresh the list
+      fetchProjectAccesses();
+    } catch (error: any) {
+      console.error('Error removing access:', error);
+      
+      if (error.response?.status === 403) {
+        message.error('You do not have permission to remove user access');
+      } else {
+        message.error('Failed to remove access');
+      }
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // Get permission text
+  const getPermissionText = (permission: number) => {
+    switch (permission) {
+      case 1:
+        return 'View';
+      case 2:
+        return 'Edit';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  // Xác định xem người dùng có quyền chỉnh sửa hay không
+  const canEdit = permissionLevel === PermissionLevel.OWNER || permissionLevel === PermissionLevel.EDIT;
+  
+  console.log("Permission level:", permissionLevel);
+  console.log("Can edit:", canEdit);
+  console.log("PermissionLevel.OWNER:", PermissionLevel.OWNER);
+  console.log("PermissionLevel.EDIT:", PermissionLevel.EDIT);
+
+  // Kiểm tra nếu người dùng không có quyền truy cập
+  if (permissionChecked && permissionLevel === PermissionLevel.DENIED) {
+    return (
+      <Layout style={{ height: '100vh' }}>
+        <Header style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center' }}>
+          <Button 
+            icon={<ArrowLeftOutlined />} 
+            style={{ marginRight: '15px' }}
+            onClick={handleBack}
+          />
+          <Title level={3} style={{ margin: 0 }}>Access Denied</Title>
+        </Header>
+        <Content style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Alert
+            message="Access Denied"
+            description="Bạn không có quyền truy cập dự án này."
+            type="error"
+            showIcon
+            icon={<LockOutlined />}
+            style={{ maxWidth: '500px' }}
+            action={
+              <Button type="primary" onClick={handleBack}>
+                Quay lại
+              </Button>
+            }
+          />
+        </Content>
+      </Layout>
+    );
+  }
+
+  if (loading && !dbmlCode) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Spin size="large" tip="Loading project..." />
+      </div>
+    );
+  }
+
+  return (
+    <Layout style={{ height: '100vh' }}>
+      <Header style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <Button 
+            icon={<ArrowLeftOutlined />} 
+            style={{ marginRight: '15px' }}
+            onClick={handleBack}
+          />
+          <Title level={3} style={{ margin: 0, fontSize: showLabels ? '1.17em' : '1em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: showLabels ? '400px' : '200px' }}>{projectCode || 'Diagram Editor'}</Title>
+          {/* Chỉ hiển thị tag changelog khi đã chọn changelog và không chọn version */}
+          {currentChangelogCode && !currentVersion && (
+            <Tag color="blue" style={{ marginLeft: '10px' }}>
+              <ClockCircleOutlined /> v{currentChangelogCode}
+            </Tag>
+          )}
+        </div>
+        <Space size={showLabels ? 'middle' : 'small'} wrap={false} style={{ overflowX: 'auto' }}>
+          {showPermissionAlert && permissionLevel !== null && (
+            <Alert
+              message={getPermissionText(permissionLevel)}
+              type={canEdit ? "success" : "info"}
+              showIcon
+              style={{ marginRight: '15px' }}
+            />
+          )}
+          {versions.length > 0 && (
+            <Select
+              style={{ width: showLabels ? 150 : 100 }}
+              value={currentVersion}
+              onChange={handleVersionChange}
+              options={versions.map(v => ({ 
+                label: showLabels ? `Version ${v.codeVersion}` : `V${v.codeVersion}`, 
+                value: v.id 
+              }))}
+            />
+          )}
+          <Button icon={<ShareAltOutlined />} onClick={handleShareClick}>
+            {showLabels && 'Share'}
+          </Button>
+          <Button icon={<HistoryOutlined />} onClick={handleHistoryClick}>
+            {showLabels && 'History'}
+          </Button>
+          <Button icon={<ImportOutlined />} onClick={() => message.info('Import functionality will be implemented')}>
+            {showLabels && 'Import'}
+          </Button>
+          <Dropdown overlay={
+            <Menu>
+              <Menu.Item key="png">PNG</Menu.Item>
+              <Menu.Item key="svg">SVG</Menu.Item>
+              <Menu.Item key="dbml">DBML</Menu.Item>
+              <Menu.Divider />
+              <Menu.Item key="ddl" icon={<DatabaseOutlined />} onClick={handleExportDDLClick}>
+                Generate SQL DDL
+              </Menu.Item>
+            </Menu>
+          } trigger={['click']}>
+            <Button icon={<ExportOutlined />}>
+              {showLabels && 'Export'} {showLabels && <DownOutlined />}
+            </Button>
+          </Dropdown>
+          <Button 
+            icon={<CopyOutlined />} 
+            onClick={handleCopyCode}
+          >
+            {showLabels && 'Copy DBML'}
+          </Button>
+          {canEdit && (
+            <Button 
+              onClick={handleSave}
+              type="primary"
+              disabled={!hasChanges}
+              icon={showLabels ? null : <CloudUploadOutlined />}
+            >
+              {showLabels ? 'Save' : ''}
+            </Button>
+          )}
+          <Button 
+            icon={<DownloadOutlined />} 
+            onClick={handleDownload}
+          >
+            {showLabels && 'Download'}
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<CloudUploadOutlined />}
+            onClick={() => message.info('Publish functionality will be implemented')}
+          >
+            {showLabels && 'Publish to dbdocs'}
+          </Button>
+        </Space>
+      </Header>
+      <Content style={{ height: 'calc(100vh - 64px)' }}>
+        <DbmlEditor 
+          initialValue={dbmlCode} 
+          onChange={handleDbmlChange} 
+          height="100%" 
+          readOnly={!canEdit}
+          type="dbml"
+        />
+      </Content>
+
+      {/* History Drawer */}
+      <Drawer
+        title="Changelog History"
+        placement="right"
+        onClose={() => setHistoryDrawerVisible(false)}
+        open={historyDrawerVisible}
+        width={400}
+      >
+        {changelogLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+            <Spin tip="Loading changelog history..." />
+          </div>
+        ) : (
+          <List
+            itemLayout="horizontal"
+            dataSource={changelogs}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  <Tooltip title="Revert to this changelog">
+                    <Button 
+                      type="text" 
+                      icon={<RollbackOutlined />} 
+                      onClick={() => handleApplyChangelog(item)}
+                      disabled={item.codeChangeLog === currentChangelogCode}
+                    />
+                  </Tooltip>
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={<Avatar src={item.creatorAvatarUrl || 'https://joeschmoe.io/api/v1/random'} />}
+                  title={
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span>v{item.codeChangeLog}</span>
+                      {item.codeChangeLog === currentChangelogCode && (
+                        <Tag color="green" style={{ marginLeft: 8 }}>Current</Tag>
+                      )}
+                    </div>
+                  }
+                  description={
+                    <div>
+                      <div>{item.creatorName || 'Unknown user'}</div>
+                      <div style={{ fontSize: '12px', color: '#999' }}>{formatDate(item.createdDate)}</div>
+                    </div>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Drawer>
+
+      {/* Export DDL Modal */}
+      <Modal
+        title="Generate SQL DDL"
+        open={exportDDLModalVisible}
+        onOk={exportAction === ExportAction.Download ? handleGenerateDDL : handleCopyDDL}
+        onCancel={() => setExportDDLModalVisible(false)}
+        okText={exportAction === ExportAction.Download ? "Generate & Download" : "Copy to Clipboard"}
+        confirmLoading={generatingDDL}
+        width={700}
+      >
+        <div style={{ marginBottom: '20px' }}>
+          <p>Generate SQL DDL script for the selected database type:</p>
+          
+          <div style={{ marginTop: '16px' }}>
+            <Select
+              style={{ width: '100%' }}
+              value={selectedDialect}
+              onChange={handleDialectChange}
+              options={[
+                { label: 'MySQL', value: DatabaseDialect.MySQL },
+                { label: 'MariaDB', value: DatabaseDialect.MariaDB },
+                { label: 'PostgreSQL', value: DatabaseDialect.PostgreSQL },
+                { label: 'Oracle DB', value: DatabaseDialect.OracleDB },
+                { label: 'SQL Server', value: DatabaseDialect.SQLServer }
+              ]}
+            />
+          </div>
+          
+          <div style={{ marginTop: '16px' }}>
+            <Radio.Group onChange={handleExportActionChange} value={exportAction}>
+              <Radio value={ExportAction.Download}>Download SQL file</Radio>
+              <Radio value={ExportAction.Copy}>Copy to clipboard</Radio>
+            </Radio.Group>
+          </div>
+          
+          <div style={{ marginTop: '16px' }}>
+            {currentVersion && (
+              <Alert
+                message={`Generating DDL for version ${versions.find(v => v.id === currentVersion)?.codeVersion}`}
+                type="info"
+                showIcon
+              />
+            )}
+            {currentChangelogCode && !currentVersion && (
+              <Alert
+                message={`Generating DDL for changelog v${currentChangelogCode}`}
+                type="info"
+                showIcon
+              />
+            )}
+            {!currentVersion && !currentChangelogCode && (
+              <Alert
+                message="Please select a version or changelog first"
+                type="warning"
+                showIcon
+              />
+            )}
+          </div>
+          
+          {generatedDDL && exportAction === ExportAction.Copy && (
+            <div style={{ marginTop: '16px' }}>
+              <Typography.Text strong>Generated SQL:</Typography.Text>
+              <div 
+                style={{ 
+                  marginTop: '8px',
+                  padding: '8px',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '4px',
+                  backgroundColor: '#f5f5f5',
+                  maxHeight: '200px',
+                  overflow: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'monospace'
+                }}
+              >
+                {generatedDDL}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        title="Confirm Revert to Previous Changelog"
+        open={confirmModalVisible}
+        onOk={confirmChangelogRevert}
+        onCancel={cancelChangelogRevert}
+        okText="Yes, revert to this version"
+        cancelText="Cancel"
+      >
+        <p>Are you sure you want to revert to v{selectedChangelog?.codeChangeLog}?</p>
+        {hasChanges && (
+          <Alert
+            message="Warning"
+            description="You have unsaved changes that will be lost if you revert to this change log."
+            type="warning"
+            showIcon
+            style={{ marginTop: 16 }}
+          />
+        )}
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal
+        title="Share Project"
+        open={shareModalVisible}
+        onCancel={() => setShareModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setShareModalVisible(false)}>
+            Close
+          </Button>
+        ]}
+        width={600}
+      >
+        <div>
+          {permissionLevel === PermissionLevel.OWNER && (
+            <>
+              <Typography.Title level={5}>Add People</Typography.Title>
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={handleShareInvite}
+                initialValues={{ permission: PermissionLevel.VIEW }}
+              >
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <Form.Item
+                    name="recipient"
+                    style={{ flex: 1, marginBottom: '10px' }}
+                    rules={[
+                      { required: true, message: 'Please enter an email or username' },
+                    ]}
+                  >
+                    <Input 
+                      prefix={<MailOutlined />} 
+                      placeholder="Enter email or username" 
+                    />
+                  </Form.Item>
+                  
+                  <Form.Item
+                    name="permission"
+                    style={{ width: '120px', marginBottom: '10px' }}
+                    rules={[{ required: true, message: 'Required' }]}
+                  >
+                    <Select>
+                      <Select.Option value={PermissionLevel.VIEW}>View only</Select.Option>
+                      <Select.Option value={PermissionLevel.EDIT}>Edit</Select.Option>
+                    </Select>
+                  </Form.Item>
+                  
+                  <Form.Item style={{ marginBottom: '10px' }}>
+                    <Button 
+                      type="primary" 
+                      loading={inviting}
+                      onClick={() => form.submit()}
+                      icon={<UserAddOutlined />}
+                    >
+                      Invite
+                    </Button>
+                  </Form.Item>
+                </div>
+              </Form>
+              
+              <Divider style={{ margin: '16px 0' }} />
+            </>
+          )}
+          
+          <Typography.Title level={5}>People with Access</Typography.Title>
+          
+          {loadingAccesses ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <Spin tip="Loading..." />
+            </div>
+          ) : (
+            <List
+              dataSource={projectAccesses}
+              renderItem={(item) => (
+                <List.Item
+                  actions={
+                    permissionLevel === PermissionLevel.OWNER 
+                      ? [
+                          <Popover
+                            key="more"
+                            content={
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <Button 
+                                  type="text" 
+                                  icon={<EditOutlined />} 
+                                  onClick={() => showEditModal(item)}
+                                  style={{ textAlign: 'left' }}
+                                >
+                                  Change permission
+                                </Button>
+                                <Button 
+                                  type="text" 
+                                  danger 
+                                  icon={<DeleteOutlined />} 
+                                  onClick={() => showDeleteModal(item)}
+                                  style={{ textAlign: 'left' }}
+                                >
+                                  Remove access
+                                </Button>
+                              </div>
+                            }
+                            trigger="click"
+                            placement="bottomRight"
+                          >
+                            <Button type="text" icon={<MoreOutlined />} />
+                          </Popover>
+                        ]
+                      : []
+                  }
+                >
+                  <List.Item.Meta
+                    avatar={<Avatar src={item.avatarUrl} icon={!item.avatarUrl && <UserOutlined />} />}
+                    title={
+                      <div>
+                        {item.userName || 'Unnamed User'}
+                        {item.userEmail && (
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {item.userEmail}
+                          </div>
+                        )}
+                      </div>
+                    }
+                    description={
+                      <Tag color={item.permission === 2 ? 'blue' : 'default'}>
+                        {getPermissionText(item.permission)}
+                      </Tag>
+                    }
+                  />
+                </List.Item>
+              )}
+              locale={{ emptyText: 'No users have been shared with yet' }}
+            />
+          )}
+        </div>
+      </Modal>
+      
+      {/* Edit Permission Modal */}
+      <Modal
+        title="Edit Permission"
+        open={editModalVisible}
+        onOk={handleEditPermission}
+        onCancel={() => setEditModalVisible(false)}
+        confirmLoading={processingAction}
+      >
+        <div style={{ marginBottom: '20px' }}>
+          <p>Change permission for {selectedAccess?.userName || 'User'}</p>
+          {selectedAccess?.userEmail && (
+            <p style={{ color: '#666', marginTop: '-10px' }}>{selectedAccess.userEmail}</p>
+          )}
+          
+          <Select
+            style={{ width: '100%' }}
+            value={editPermission}
+            onChange={(value) => setEditPermission(value)}
+          >
+            <Select.Option value={1}>View only</Select.Option>
+            <Select.Option value={2}>Edit</Select.Option>
+          </Select>
+        </div>
+      </Modal>
+      
+      {/* Delete Access Modal */}
+      <Modal
+        title="Remove Access"
+        open={deleteModalVisible}
+        onOk={handleDeleteAccess}
+        onCancel={() => setDeleteModalVisible(false)}
+        confirmLoading={processingAction}
+      >
+        <p>Are you sure you want to remove {selectedAccess?.userName || 'User'}'s access to this project?</p>
+        {selectedAccess?.userEmail && (
+          <p style={{ color: '#666', marginTop: '-10px' }}>{selectedAccess.userEmail}</p>
+        )}
+        <p>This action cannot be undone.</p>
+      </Modal>
+    </Layout>
+  );
+};
+
+export default DbmlEditorPage; 

@@ -27,6 +27,10 @@ export const apiService = {
       headers['Authorization'] = `${token.tokenType} ${token.accessToken}`;
     }
     
+    // Log request info for debugging
+    console.log(`API Request: ${endpoint}`);
+    console.log('Headers:', headers);
+    
     // Create an AbortController for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
@@ -66,7 +70,9 @@ export const apiService = {
         return null;
       }
       
-      return await response.json();
+      const data = await response.json();
+      console.log(`API Response from ${endpoint}:`, data);
+      return data;
     } catch (error) {
       // Clean up the timeout
       clearTimeout(timeoutId);

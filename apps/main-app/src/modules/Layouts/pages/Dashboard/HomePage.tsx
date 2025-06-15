@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty } from 'antd';
+import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, Modal, Form } from 'antd';
 import type { Breakpoint } from 'antd/es/_util/responsiveObserver';
 import { 
   PlusOutlined, 
@@ -20,10 +20,25 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
 import AuthRedirect from '../../../../components/AuthRedirect';
+import { apiService } from '../../../../services/apiService';
 import '../../../Layouts/styles/Dashboard.css';
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
+
+// Define project interface based on actual API response
+interface Project {
+  projectId: string;
+  projectCode: string;
+  description: string;
+  passwordShare: string;
+  visibility: number;
+  ownerId: string;
+  createdDate: string;
+  createdBy: string;
+  modifiedDate: string | null;
+  modifiedBy: string | null;
+}
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,53 +49,37 @@ const HomePage: React.FC = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('my-projects');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [error, setError] = useState<string | null>(null);
   
-  // Mock data for projects
-  const projects = [
-    {
-      id: '1',
-      name: 'Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active'
-    },
-    {
-      id: '2',
-      name: 'Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active'
-    },
-    {
-      id: '3',
-      name: 'Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active'
-    },
-    {
-      id: '4',
-      name: 'Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active'
-    },
-    {
-      id: '5',
-      name: 'Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active'
-    }
-  ];
+  // New Project Modal state
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createProjectForm] = Form.useForm();
+  const [projectSubmitting, setProjectSubmitting] = useState(false);
 
-  // Simulate loading data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+  console.log('Current user information:', user);
+
+  // Fetch projects from API
+  const fetchProjects = async () => {
+    setLoading(true);
+    setError(null);
     
-    return () => clearTimeout(timer);
+    try {
+      const response = await apiService.get<Project[]>('/api/v1/projects');
+      console.log('Projects:', response);
+      setProjects(response || []);
+    } catch (err: any) {
+      console.error('Error fetching projects:', err);
+      setError(err.message || 'Failed to load projects');
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fetch projects on component mount
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
   // Handle responsive behavior
@@ -107,14 +106,103 @@ const HomePage: React.FC = () => {
     };
   }, []);
 
+  // Format date to readable format
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('vi-VN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  // Get user avatar display
+  const getUserAvatar = () => {
+    // If user has an avatar URL
+    if (user?.avatarUrl) {
+      return <Avatar src={user.avatarUrl} />;
+    }
+    
+    // If user has a name, use first letter
+    if (user?.name) {
+      return (
+        <Avatar style={{ backgroundColor: '#1890ff' }}>
+          {user.name[0].toUpperCase()}
+        </Avatar>
+      );
+    }
+    
+    // If user has email, use first letter of email
+    if (user?.email) {
+      return (
+        <Avatar style={{ backgroundColor: '#1890ff' }}>
+          {user.email[0].toUpperCase()}
+        </Avatar>
+      );
+    }
+    
+    // Default avatar
+    return (
+      <Avatar style={{ backgroundColor: '#1890ff' }}>
+        <UserOutlined />
+      </Avatar>
+    );
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    return user?.name || user?.email || 'User';
+  };
+
   // Filter projects based on search text
   const filteredProjects = projectSearchText
-    ? projects.filter(p => p.name.toLowerCase().includes(projectSearchText.toLowerCase()))
+    ? projects.filter(p => p.projectCode.toLowerCase().includes(projectSearchText.toLowerCase()))
     : projects;
 
   const handleCreateProject = () => {
-    // Navigate to project creation page
-    navigate('/projects/new');
+    // Open create project modal instead of navigating
+    setCreateModalVisible(true);
+  };
+
+  // Submit create project form
+  const handleCreateProjectSubmit = async (values: any) => {
+    setProjectSubmitting(true);
+    try {
+      // Set default values for passwordShare and visibility
+      const projectData = {
+        ...values,
+        passwordShare: null,  // Default to null
+        visibility: 2         // Default to 2
+      };
+      
+      console.log('Creating project with values:', projectData);
+      
+      // Call API to create project
+      const response = await apiService.post('/api/v1/projects', projectData);
+      console.log('Project created:', response);
+      
+      // Clear form and close modal
+      createProjectForm.resetFields();
+      setCreateModalVisible(false);
+      
+      // Refresh projects list
+      fetchProjects();
+      
+    } catch (err: any) {
+      console.error('Error creating project:', err);
+      // Handle error (could show notification here)
+    } finally {
+      setProjectSubmitting(false);
+    }
+  };
+  
+  // Close modal and reset form
+  const handleCancelCreate = () => {
+    createProjectForm.resetFields();
+    setCreateModalVisible(false);
   };
 
   const handleViewProject = (projectId: string) => {
@@ -153,31 +241,37 @@ const HomePage: React.FC = () => {
   const columns = [
     {
       title: 'Name project',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: any) => (
-        <Space>
-          <Badge className={record.status === 'active' ? 'badge-dot-active' : 'badge-dot-inactive'} status="default" />
-          <span className="project-name">{text}</span>
-        </Space>
+      dataIndex: 'projectCode',
+      key: 'projectCode',
+      render: (text: string, record: Project) => (
+        <span className="project-name">{text}</span>
       )
     },
     {
-      title: 'Last modified',
-      dataIndex: 'lastModified',
-      key: 'lastModified',
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
       responsive: ['md' as Breakpoint]
     },
     {
+      title: 'Last modified',
+      dataIndex: 'modifiedDate',
+      key: 'modifiedDate',
+      responsive: ['lg' as Breakpoint],
+      render: (text: string | null, record: Project) => 
+        formatDate(record.modifiedDate || record.createdDate)
+    },
+    {
       title: 'Created at',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      responsive: ['lg' as Breakpoint]
+      dataIndex: 'createdDate',
+      key: 'createdDate',
+      responsive: ['xl' as Breakpoint],
+      render: (text: string) => formatDate(text)
     },
     {
       title: '',
       key: 'actions',
-      render: (_: any, record: any) => (
+      render: (_: any, record: Project) => (
         <Space className="action-buttons">
           <Tooltip title="Edit">
             <Button 
@@ -186,7 +280,7 @@ const HomePage: React.FC = () => {
               shape="circle" 
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/projects/${record.id}/edit`);
+                navigate(`/dbml-editor/${record.projectId}`);
               }} 
             />
           </Tooltip>
@@ -197,7 +291,7 @@ const HomePage: React.FC = () => {
               shape="circle" 
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/projects/${record.id}/docs`);
+                navigate(`/projects/${record.projectId}/docs`);
               }} 
             />
           </Tooltip>
@@ -272,12 +366,10 @@ const HomePage: React.FC = () => {
             trigger={['click']}
           >
             <div className="user-dropdown">
-              <Avatar style={{ backgroundColor: '#1890ff' }}>
-                {user?.name ? user.name[0].toUpperCase() : 'U'}
-              </Avatar>
+              {getUserAvatar()}
               {windowWidth > 480 && (
                 <span style={{ marginLeft: '8px', fontWeight: 500 }}>
-                  {user?.email || 'quandev03@gmail.com'}
+                  {getUserDisplayName()}
                 </span>
               )}
             </div>
@@ -365,14 +457,25 @@ const HomePage: React.FC = () => {
               <Spin />
               <div style={{ marginTop: '10px' }}>Loading projects...</div>
             </div>
+          ) : error ? (
+            <div className="error-container">
+              <Empty 
+                image={Empty.PRESENTED_IMAGE_SIMPLE} 
+                description={
+                  <span style={{ color: '#ff4d4f' }}>
+                    {error}
+                  </span>
+                }
+              />
+            </div>
           ) : filteredProjects.length > 0 ? (
             <Table 
               columns={columns} 
               dataSource={filteredProjects} 
               pagination={false}
-              rowKey="id"
+              rowKey="projectId"
               onRow={(record) => ({
-                onClick: () => handleViewProject(record.id),
+                onClick: () => handleViewProject(record.projectId),
                 className: 'project-row'
               })}
               className="fade-in"
@@ -399,6 +502,86 @@ const HomePage: React.FC = () => {
       requireAuth={true}
     >
       <DashboardContent />
+      
+      {/* Create Project Modal */}
+      <Modal
+        title={<div style={{ textAlign: 'center', color: '#1890ff' }}>Create New Project</div>}
+        open={createModalVisible}
+        onCancel={handleCancelCreate}
+        footer={null}
+        destroyOnClose
+        width={500}
+        centered
+        maskClosable={false}
+        bodyStyle={{ padding: '20px' }}
+      >
+        <Form
+          form={createProjectForm}
+          layout="vertical"
+          onFinish={handleCreateProjectSubmit}
+          requiredMark={false}
+          style={{ maxWidth: '100%' }}
+        >
+          <Form.Item
+            name="projectCode"
+            label="Project Code"
+            rules={[
+              { required: true, message: 'Please enter project code' },
+              { min: 3, message: 'Project code must be at least 3 characters' },
+              { max: 15, message: 'Project code cannot exceed 15 characters' },
+              { 
+                pattern: /^[a-zA-Z0-9_-]+$/, 
+                message: 'Project code can only contain letters, numbers, underscores and hyphens' 
+              }
+            ]}
+            tooltip="Project code must be 3-15 characters with no spaces or special characters"
+          >
+            <Input 
+              placeholder="Enter project code" 
+              maxLength={15} 
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[
+              { required: true, message: 'Please enter project description' }
+            ]}
+            style={{ marginBottom: '30px' }}
+          >
+            <Input.TextArea 
+              placeholder="Enter project description" 
+              rows={4}
+              showCount 
+              maxLength={200}
+              style={{ width: '100%', resize: 'vertical' }}
+            />
+          </Form.Item>
+          
+          <Form.Item style={{ marginBottom: 0 }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'flex-end', 
+              gap: '10px', 
+              marginTop: '20px',
+              marginBottom: '10px'
+            }}>
+              <Button onClick={handleCancelCreate}>
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={projectSubmitting}
+              >
+                Create Project
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
     </AuthRedirect>
   );
 };

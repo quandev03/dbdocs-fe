@@ -33,28 +33,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false
   });
 
+  // Fetch user info from API
+  const fetchUserInfo = async () => {
+    try {
+      // Get user info from API
+      const userInfo = await authService.getCurrentUser();
+      return userInfo;
+    } catch (error) {
+      console.error('Failed to fetch user info:', error);
+      return null;
+    }
+  };
+
   // Check authentication status when component mounts
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const isAuthenticated = authService.isAuthenticated();
-        const userInfoStr = localStorage.getItem('user_info');
-        let userInfo = null;
         
-        if (userInfoStr) {
-          try {
-            userInfo = JSON.parse(userInfoStr);
-          } catch (e) {
-            console.error('Error parsing user info from localStorage:', e);
-          }
+        if (isAuthenticated) {
+          // Fetch user info from API
+          const userInfo = await fetchUserInfo();
+          
+          setState({
+            user: userInfo,
+            loading: false,
+            error: null,
+            isAuthenticated: true
+          });
+        } else {
+          setState({
+            user: null,
+            loading: false,
+            error: null,
+            isAuthenticated: false
+          });
         }
-        
-        setState({
-          user: userInfo,
-          loading: false,
-          error: null,
-          isAuthenticated: isAuthenticated
-        });
       } catch (err) {
         console.error('Auth check error:', err);
         setState({
@@ -83,17 +97,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       if (result.isAuthenticated) {
-        // Get user info from localStorage if available
-        const userInfoStr = localStorage.getItem('user_info');
-        let userInfo = null;
-        
-        if (userInfoStr) {
-          try {
-            userInfo = JSON.parse(userInfoStr);
-          } catch (e) {
-            console.error('Error parsing user info from localStorage:', e);
-          }
-        }
+        // Fetch user info from API
+        const userInfo = await fetchUserInfo();
         
         setState({
           user: userInfo,
@@ -134,7 +139,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       // Clear tokens and user data
       authService.clearToken();
-      localStorage.removeItem('user_info');
       
       setState({
         user: null,
@@ -166,17 +170,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      // Get user info from localStorage if available
-      const userInfoStr = localStorage.getItem('user_info');
-      let userInfo = null;
-      
-      if (userInfoStr) {
-        try {
-          userInfo = JSON.parse(userInfoStr);
-        } catch (e) {
-          console.error('Error parsing user info from localStorage:', e);
-        }
-      }
+      // Fetch user info from API
+      const userInfo = await fetchUserInfo();
       
       setState(prev => ({
         ...prev,

@@ -115,8 +115,12 @@ export const authService = {
       const left = window.innerWidth / 2 - width / 2;
       const top = window.innerHeight / 2 - height / 2;
       
+      // Determine redirect URL with proper origin
+      const redirectUrl = `${API_BASE_URL}${url}`;
+      console.log('Opening OAuth popup to:', redirectUrl);
+      
       const popup = window.open(
-        `${API_BASE_URL}${url}`, 
+        redirectUrl, 
         'oauth2',
         `width=${width},height=${height},top=${top},left=${left}`
       );
@@ -146,9 +150,18 @@ export const authService = {
       
       // Listen for messages from popup
       const handleAuth = (event: MessageEvent) => {
+        // Log message for debugging
+        console.log('Received message event:', {
+          origin: event.origin,
+          data: event.data,
+          currentOrigin: window.location.origin,
+          backendOrigin: new URL(API_BASE_URL).origin,
+          frontendOrigin: FRONTEND_CONFIG.ORIGIN
+        });
+        
         // Accept messages from the backend origin or any origin if needed for cross-origin
         const backendOrigin = new URL(API_BASE_URL).origin;
-        const frontendOrigin = new URL(FRONTEND_CONFIG.BASE_URL).origin;
+        const frontendOrigin = FRONTEND_CONFIG.ORIGIN;
         
         if (event.origin !== window.location.origin && 
             event.origin !== backendOrigin && 
@@ -160,6 +173,8 @@ export const authService = {
         
         const data = event.data;
         if (data && data.accessToken) {
+          console.log('Received token data from OAuth popup');
+          
           // Save token to localStorage
           authService.saveToken(data);
           
@@ -173,6 +188,8 @@ export const authService = {
             token: data.accessToken 
           });
         } else if (data && data.error) {
+          console.error('OAuth error:', data.error);
+          
           // Handle error from popup
           if (!popup.closed) popup.close();
           clearInterval(checkPopupClosed);
@@ -194,7 +211,7 @@ export const authService = {
 
     try {
       const token = authService.getToken();
-      const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
         headers: {
           'Authorization': `${token?.tokenType} ${token?.accessToken}`
         }

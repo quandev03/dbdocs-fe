@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty } from 'antd';
+import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, Modal, Form } from 'antd';
 import type { Breakpoint } from 'antd/es/_util/responsiveObserver';
+import type { AlignType } from 'rc-table/lib/interface';
 import { 
   PlusOutlined, 
   SearchOutlined, 
@@ -20,10 +21,36 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
 import AuthRedirect from '../../../../components/AuthRedirect';
+import { apiService } from '../../../../services/apiService';
 import '../../../Layouts/styles/Dashboard.css';
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
+
+// Define project interface based on actual API response
+interface Project {
+  projectId: string;
+  projectCode: string;
+  description: string;
+  passwordShare: string;
+  visibility: number;
+  ownerId: string;
+  createdDate: string;
+  createdBy: string;
+  modifiedDate: string | null;
+  modifiedBy: string | null;
+  sharedBy?: string;
+  owner?: {
+    id: string;
+    name?: string;
+    email?: string;
+    avatarUrl?: string;
+  };
+  latestModification?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerAvatarUrl?: string;
+}
 
 const SharePage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,42 +61,37 @@ const SharePage: React.FC = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('shared');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [error, setError] = useState<string | null>(null);
   
-  // Mock data for shared projects
-  const sharedProjects = [
-    {
-      id: '1',
-      name: 'Shared Project 1',
-      lastModified: 'Today at 1:30pm',
-      createdAt: 'Tomorrow at 8am',
-      status: 'active',
-      sharedBy: 'John Doe'
-    },
-    {
-      id: '2',
-      name: 'Shared Project 2',
-      lastModified: 'Today at 2:30pm',
-      createdAt: 'Yesterday at 8am',
-      status: 'active',
-      sharedBy: 'Jane Smith'
-    },
-    {
-      id: '3',
-      name: 'Shared Project 3',
-      lastModified: 'Today at 3:30pm',
-      createdAt: '2 days ago',
-      status: 'active',
-      sharedBy: 'Mike Johnson'
-    }
-  ];
-
-  // Simulate loading data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+  // New Project Modal state
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createProjectForm] = Form.useForm();
+  const [projectSubmitting, setProjectSubmitting] = useState(false);
+  
+  console.log('Current user information (SharePage):', user);
+  
+  // Fetch shared projects from API
+  const fetchSharedProjects = async () => {
+    setLoading(true);
+    setError(null);
     
-    return () => clearTimeout(timer);
+    try {
+      const response = await apiService.get<Project[]>('/api/v1/projects/shared');
+      console.log('Shared projects:', response);
+      setProjects(response || []);
+    } catch (err: any) {
+      console.error('Error fetching shared projects:', err);
+      setError(err.message || 'Failed to load shared projects');
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fetch shared projects on component mount
+  useEffect(() => {
+    fetchSharedProjects();
   }, []);
 
   // Handle responsive behavior
@@ -96,14 +118,70 @@ const SharePage: React.FC = () => {
     };
   }, []);
 
+  // Format date to readable format
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('vi-VN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+  
+  // Get user avatar for a given user object or owner information
+  const getUserAvatarByInfo = (name?: string, email?: string, avatarUrl?: string) => {
+    // If user has an avatar URL
+    if (avatarUrl) {
+      return <Avatar src={avatarUrl} />;
+    }
+    
+    // If user has a name, use first letter
+    if (name) {
+      return (
+        <Avatar style={{ backgroundColor: '#1890ff' }}>
+          {name[0].toUpperCase()}
+        </Avatar>
+      );
+    }
+    
+    // If user has email, use first letter of email
+    if (email) {
+      return (
+        <Avatar style={{ backgroundColor: '#1890ff' }}>
+          {email[0].toUpperCase()}
+        </Avatar>
+      );
+    }
+    
+    // Default avatar
+    return (
+      <Avatar style={{ backgroundColor: '#87d068' }}>
+        <UserOutlined />
+      </Avatar>
+    );
+  };
+  
+  // Get user avatar display for logged in user
+  const getUserAvatar = () => {
+    return getUserAvatarByInfo(user?.name, user?.email, user?.avatarUrl);
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    return user?.name || user?.email || 'User';
+  };
+
   // Filter projects based on search text
   const filteredProjects = projectSearchText
-    ? sharedProjects.filter(p => p.name.toLowerCase().includes(projectSearchText.toLowerCase()))
-    : sharedProjects;
+    ? projects.filter(p => p.projectCode.toLowerCase().includes(projectSearchText.toLowerCase()))
+    : projects;
 
   const handleCreateProject = () => {
-    // Navigate to project creation page
-    navigate('/projects/new');
+    // Open create project modal instead of navigating
+    setCreateModalVisible(true);
   };
 
   const handleViewProject = (projectId: string) => {
@@ -142,40 +220,132 @@ const SharePage: React.FC = () => {
     }
   };
 
+  // Submit create project form
+  const handleCreateProjectSubmit = async (values: any) => {
+    setProjectSubmitting(true);
+    try {
+      console.log('Creating project with values:', values);
+      
+      // Call API to create project
+      const response = await apiService.post('/api/v1/projects', values);
+      console.log('Project created:', response);
+      
+      // Clear form and close modal
+      createProjectForm.resetFields();
+      setCreateModalVisible(false);
+      
+      // Refresh projects list
+      fetchSharedProjects();
+      
+    } catch (err: any) {
+      console.error('Error creating project:', err);
+      // Handle error (could show notification here)
+    } finally {
+      setProjectSubmitting(false);
+    }
+  };
+  
+  // Close modal and reset form
+  const handleCancelCreate = () => {
+    createProjectForm.resetFields();
+    setCreateModalVisible(false);
+  };
+
   const columns = [
     {
       title: 'Name project',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: any) => (
-        <Space>
-          <Badge className={record.status === 'active' ? 'badge-dot-active' : 'badge-dot-inactive'} status="default" />
-          <span className="project-name">{text}</span>
-        </Space>
+      dataIndex: 'projectCode',
+      key: 'projectCode',
+      align: 'center' as AlignType,
+      render: (text: string, record: Project) => (
+        <span className="project-name">{text}</span>
       )
     },
     {
       title: 'Shared by',
-      dataIndex: 'sharedBy',
-      key: 'sharedBy',
-      responsive: ['md' as Breakpoint]
+      key: 'owner',
+      responsive: ['md' as Breakpoint],
+      align: 'center' as AlignType,
+      render: (_: any, record: Project) => {
+        console.log('Rendering owner for project:', record.projectCode, record);
+        
+        // Lấy thông tin owner từ các trường có thể có trong API response
+        const ownerName = record.ownerName || 
+                          (record.owner?.name) || 
+                          '';
+                          
+        const ownerEmail = record.ownerEmail || 
+                           (record.owner?.email) || 
+                           '';
+                           
+        const ownerAvatar = record.ownerAvatarUrl || record.owner?.avatarUrl;
+        
+        console.log('Owner avatar URL:', ownerAvatar);
+        
+        return (
+          <Tooltip title={
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ marginBottom: '8px' }}>
+                {ownerAvatar ? (
+                  <Avatar 
+                    src={ownerAvatar} 
+                    size={64}
+                    icon={<UserOutlined />} 
+                    onError={() => {
+                      console.log('Avatar load failed:', ownerAvatar);
+                      return true; // Use fallback
+                    }}
+                  />
+                ) : (
+                  getUserAvatarByInfo(ownerName, ownerEmail, undefined)
+                )}
+              </div>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                {ownerName || 'Unknown'}
+              </div>
+              <div>{ownerEmail || ''}</div>
+            </div>
+          }>
+            <div style={{ cursor: 'pointer' }}>
+              {ownerAvatar ? (
+                <Avatar 
+                  src={ownerAvatar} 
+                  icon={<UserOutlined />}
+                  onError={() => {
+                    console.log('Avatar load failed (small):', ownerAvatar);
+                    return true; // Use fallback
+                  }}
+                />
+              ) : (
+                getUserAvatarByInfo(ownerName, ownerEmail, undefined)
+              )}
+            </div>
+          </Tooltip>
+        );
+      }
     },
     {
       title: 'Last modified',
-      dataIndex: 'lastModified',
-      key: 'lastModified',
-      responsive: ['lg' as Breakpoint]
+      dataIndex: 'latestModification',
+      key: 'latestModification',
+      responsive: ['lg' as Breakpoint],
+      align: 'center' as AlignType,
+      render: (text: string | null, record: Project) => 
+        formatDate(record.latestModification || record.modifiedDate || record.createdDate)
     },
     {
       title: 'Created at',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      responsive: ['xl' as Breakpoint]
+      dataIndex: 'createdDate',
+      key: 'createdDate',
+      responsive: ['xl' as Breakpoint],
+      align: 'center' as AlignType,
+      render: (text: string) => formatDate(text)
     },
     {
       title: '',
       key: 'actions',
-      render: (_: any, record: any) => (
+      align: 'center' as AlignType,
+      render: (_: any, record: Project) => (
         <Space className="action-buttons">
           <Tooltip title="Edit">
             <Button 
@@ -184,7 +354,7 @@ const SharePage: React.FC = () => {
               shape="circle" 
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/projects/${record.id}/edit`);
+                navigate(`/dbml-editor/${record.projectId}`);
               }} 
             />
           </Tooltip>
@@ -195,7 +365,7 @@ const SharePage: React.FC = () => {
               shape="circle" 
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/projects/${record.id}/docs`);
+                navigate(`/projects/${record.projectId}/docs`);
               }} 
             />
           </Tooltip>
@@ -270,12 +440,10 @@ const SharePage: React.FC = () => {
             trigger={['click']}
           >
             <div className="user-dropdown">
-              <Avatar style={{ backgroundColor: '#1890ff' }}>
-                {user?.name ? user.name[0].toUpperCase() : 'U'}
-              </Avatar>
+              {getUserAvatar()}
               {windowWidth > 480 && (
                 <span style={{ marginLeft: '8px', fontWeight: 500 }}>
-                  {user?.email || 'quandev03@gmail.com'}
+                  {getUserDisplayName()}
                 </span>
               )}
             </div>
@@ -363,14 +531,25 @@ const SharePage: React.FC = () => {
               <Spin />
               <div style={{ marginTop: '10px' }}>Loading shared projects...</div>
             </div>
+          ) : error ? (
+            <div className="error-container">
+              <Empty 
+                image={Empty.PRESENTED_IMAGE_SIMPLE} 
+                description={
+                  <span style={{ color: '#ff4d4f' }}>
+                    {error}
+                  </span>
+                }
+              />
+            </div>
           ) : filteredProjects.length > 0 ? (
             <Table 
               columns={columns} 
               dataSource={filteredProjects} 
               pagination={false}
-              rowKey="id"
+              rowKey="projectId"
               onRow={(record) => ({
-                onClick: () => handleViewProject(record.id),
+                onClick: () => handleViewProject(record.projectId),
                 className: 'project-row'
               })}
               className="fade-in"
@@ -397,6 +576,86 @@ const SharePage: React.FC = () => {
       requireAuth={true}
     >
       <DashboardContent />
+      
+      {/* Create Project Modal */}
+      <Modal
+        title="Create New Project"
+        open={createModalVisible}
+        onCancel={handleCancelCreate}
+        footer={null}
+        destroyOnClose
+        width={500}
+        centered
+        maskClosable={false}
+        bodyStyle={{ padding: '20px' }}
+      >
+        <Form
+          form={createProjectForm}
+          layout="vertical"
+          onFinish={handleCreateProjectSubmit}
+          requiredMark={false}
+          style={{ maxWidth: '100%' }}
+        >
+          <Form.Item
+            name="projectCode"
+            label="Project Code"
+            rules={[
+              { required: true, message: 'Please enter project code' },
+              { min: 3, message: 'Project code must be at least 3 characters' },
+              { max: 15, message: 'Project code cannot exceed 15 characters' },
+              { 
+                pattern: /^[a-zA-Z0-9_-]+$/, 
+                message: 'Project code can only contain letters, numbers, underscores and hyphens' 
+              }
+            ]}
+            tooltip="Project code must be 3-15 characters with no spaces or special characters"
+          >
+            <Input 
+              placeholder="Enter project code" 
+              maxLength={15} 
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[
+              { required: true, message: 'Please enter project description' }
+            ]}
+            style={{ marginBottom: '30px' }}
+          >
+            <Input.TextArea 
+              placeholder="Enter project description" 
+              rows={4}
+              showCount 
+              maxLength={200}
+              style={{ width: '100%', resize: 'vertical' }}
+            />
+          </Form.Item>
+          
+          <Form.Item style={{ marginBottom: 0 }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'flex-end', 
+              gap: '10px', 
+              marginTop: '20px',
+              marginBottom: '10px'
+            }}>
+              <Button onClick={handleCancelCreate}>
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={projectSubmitting}
+              >
+                Create Project
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
     </AuthRedirect>
   );
 };

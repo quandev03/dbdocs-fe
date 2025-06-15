@@ -23,6 +23,20 @@ const dashboardRoutes: RouteObject[] = [
       return { Component: SharePage };
     },
   },
+  {
+    path: pathRoutes.dbmlEditor,
+    lazy: async () => {
+      const { default: DbmlEditorPage } = await import('../../../Dashboard/pages/DbmlEditorPage');
+      return { Component: DbmlEditorPage };
+    },
+  },
+  {
+    path: `${pathRoutes.dbmlEditor}/:projectId`,
+    lazy: async () => {
+      const { default: DbmlEditorPage } = await import('../../../Dashboard/pages/DbmlEditorPage');
+      return { Component: DbmlEditorPage };
+    },
+  },
 ];
 
 export default dashboardRoutes; 

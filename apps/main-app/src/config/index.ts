@@ -9,6 +9,7 @@ export const API_CONFIG = {
 // Frontend configuration
 export const FRONTEND_CONFIG = {
   BASE_URL: import.meta.env.VITE_FRONTEND_URL || 'http://localhost:4200',
+  ORIGIN: typeof window !== 'undefined' ? window.location.origin : (import.meta.env.VITE_FRONTEND_URL || 'http://localhost:4200'),
 };
 
 // Auth configuration
