@@ -6,10 +6,10 @@ export interface PermissionResponse {
 }
 
 export enum PermissionLevel {
-  OWNER = 3,  // Chủ sở hữu
-  EDIT = 2,   // Quyền chỉnh sửa
-  VIEW = 1,   // Quyền xem
-  DENIED = 0  // Không có quyền
+  OWNER = 1,  // Chủ sở hữu
+  VIEW = 2,   // Quyền xem
+  EDIT = 3,   // Quyền chỉnh sửa
+  DENIED = 4  // Không có quyền
 }
 
 export const checkProjectPermission = async (projectId: string): Promise<PermissionResponse> => {

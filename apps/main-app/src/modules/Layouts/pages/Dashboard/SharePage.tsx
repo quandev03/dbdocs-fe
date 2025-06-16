@@ -394,7 +394,7 @@ const SharePage: React.FC = () => {
 
   const DashboardContent = () => (
     <div className="dashboard-container">
-      <Header className="top-header" style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Header className="top-header" style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {windowWidth <= 768 && (
             <Button 
@@ -402,7 +402,7 @@ const SharePage: React.FC = () => {
               icon={sidebarVisible ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />} 
               onClick={toggleSidebar} 
               className="header-action-button"
-              style={{ marginRight: '10px' }}
+              style={{ marginRight: '16px' }}
             />
           )}
           <div className="logo-text" onClick={() => navigate('/')}>DBDocs</div>
@@ -417,14 +417,13 @@ const SharePage: React.FC = () => {
           style={{ width: windowWidth <= 768 ? '150px' : '300px', margin: '0 20px' }}
         />
         
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Tooltip title="Help">
             <Button 
               type="text" 
               icon={<QuestionCircleOutlined />} 
               shape="circle" 
               className="header-action-button"
-              style={{ marginRight: '10px' }}
               onClick={() => navigate('/help')}
             />
           </Tooltip>
@@ -468,13 +467,13 @@ const SharePage: React.FC = () => {
         <div className="sidebar-divider" />
         
         <div 
-          className={`sidebar-menu-item featured ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
+          className={`sidebar-menu-item ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
           onClick={() => handleMenuItemClick('my-projects')}
         >
           <div className="sidebar-icon">
             <StarFilled className="star-icon" />
           </div>
-          My Project
+          My Projects
         </div>
         
         <div 
@@ -515,7 +514,7 @@ const SharePage: React.FC = () => {
         
         <div className="project-list-container fade-in">
           <div className="table-header">
-            <Typography.Text strong>All Shared Projects ({loading ? '...' : filteredProjects.length})</Typography.Text>
+            <Typography.Text strong>Shared with me ({loading ? '...' : filteredProjects.length})</Typography.Text>
             <Input 
               placeholder="Search projects" 
               prefix={<SearchOutlined />} 

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import { Tooltip, Button } from 'antd';
+import { Tooltip, Button, Popover, Space, Menu, Modal } from 'antd';
 import Editor, { OnMount, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { 
   ZoomInOutlined, 
   ZoomOutOutlined, 
-  FullscreenOutlined
+  FullscreenOutlined,
+  MoreOutlined,
+  BgColorsOutlined
 } from '@ant-design/icons';
 
 // Configure Monaco Editor to use local files
@@ -36,6 +38,7 @@ interface TableData {
   fields: TableField[];
   x: number;
   y: number;
+  color?: string;
 }
 
 interface Relationship {
@@ -136,13 +139,47 @@ const TableCard = styled.div<{ x: number; y: number }>`
   z-index: 10;
 `;
 
-const TableHeader = styled.div`
-  background: #1890ff;
+const TableHeader = styled.div<{ color?: string }>`
+  background: ${props => props.color || '#1890ff'};
   color: white;
   padding: 10px;
   font-weight: bold;
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const TableName = styled.div`
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const TableMenuButton = styled.div`
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+`;
+
+const TableWrapper = styled.div`
+  position: relative;
+  
+  &:hover ${TableMenuButton} {
+    opacity: 1;
+  }
 `;
 
 const TableContent = styled.div`
@@ -171,10 +208,15 @@ const RelationshipLine = styled.svg`
   position: absolute;
   top: 0;
   left: 0;
-  width: 3000px;
-  height: 3000px;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 5;
+
+  path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 `;
 
 const ZoomControls = styled.div`
@@ -322,6 +364,35 @@ const parseDbml = (dbmlCode: string) => {
   return { tables, relationships };
 };
 
+// Thêm các màu có sẵn để người dùng chọn
+const TABLE_COLORS = [
+  '#1890ff', // Default blue
+  '#13c2c2', // Cyan
+  '#52c41a', // Green
+  '#faad14', // Gold
+  '#fa8c16', // Orange
+  '#722ed1', // Purple
+  '#eb2f96', // Magenta
+  '#f5222d', // Red
+  '#2f54eb', // Geekblue
+  '#fadb14', // Yellow
+];
+
+// Tạo component ColorButton để hiển thị màu
+const ColorButton = styled.button<{ color: string }>`
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background-color: ${props => props.color};
+  border: 1px solid #d9d9d9;
+  cursor: pointer;
+  margin: 2px;
+  &:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+`;
+
 export const DbmlEditor: React.FC<DbmlEditorProps> = ({
   initialValue = '',
   onChange,
@@ -340,10 +411,14 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
   const [tablePositions, setTablePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [viewportPos, setViewportPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 });
-  const [straightLines, setStraightLines] = useState<boolean>(false);
+  const [straightLines, setStraightLines] = useState<boolean>(true);
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStartPos, setPanStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [panStartScroll, setPanStartScroll] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [lineStyle, setLineStyle] = useState<'straight' | 'curved' | 'orthogonal'>('straight');
+  const [colorPickerVisible, setColorPickerVisible] = useState<string | null>(null);
+  const [colorModalVisible, setColorModalVisible] = useState<boolean>(false);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
   
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -432,7 +507,10 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
 
     // Update cursor position
     editor.onDidChangeCursorPosition(e => {
-      setCursorPosition(e.position);
+      setCursorPosition({
+        line: e.position.lineNumber,
+        column: e.position.column
+      });
     });
   };
 
@@ -611,7 +689,14 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
   
   // Toggle line style
   const toggleLineStyle = () => {
-    setStraightLines(prev => !prev);
+    // Rotate through the three line styles
+    if (lineStyle === 'straight') {
+      setLineStyle('curved');
+    } else if (lineStyle === 'curved') {
+      setLineStyle('orthogonal');
+    } else {
+      setLineStyle('straight');
+    }
   };
   
   // Find coordinates for relationship lines
@@ -647,17 +732,37 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
     // Path for the line
     let path = '';
     
-    if (straightLines) {
-      // Orthogonal line with segments
+    if (lineStyle === 'straight') {
+      // Simple straight line
       path = `M ${fromX} ${fromY} L ${toX} ${toY}`;
-    } else {
-      // Control points for curve
+    } else if (lineStyle === 'curved') {
+      // Bezier curve with improved control points
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const controlLen = Math.sqrt(dx * dx + dy * dy) * 0.4;
+      
+      // Create nicer curves by using appropriate control points
+      path = `M ${fromX} ${fromY} C ${fromX + controlLen} ${fromY}, ${toX - controlLen} ${toY}, ${toX} ${toY}`;
+    } else if (lineStyle === 'orthogonal') {
+      // Orthogonal line with smoother corners
       const midX = (fromX + toX) / 2;
-      path = `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`;
+      
+      // Add a small radius for corners (prettier than sharp angles)
+      const radius = 8; // Corner radius
+      
+      // Horizontal to vertical path
+      path = `M ${fromX} ${fromY} 
+              H ${midX - radius} 
+              Q ${midX} ${fromY} ${midX} ${fromY + (toY > fromY ? radius : -radius)}
+              V ${toY - (toY > fromY ? radius : -radius)}
+              Q ${midX} ${toY} ${midX + radius} ${toY}
+              H ${toX}`;
     }
     
     // Arrow head
     const arrowSize = 8;
+    
+    // Calculate angle for arrow heads
     const angle = Math.atan2(toY - fromY, toX - fromX);
     
     // Adjust arrow position to be at the end of the line
@@ -688,6 +793,16 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       case '-': return '#722ed1'; // One-to-one: purple
       case '<>': return '#fa8c16'; // Many-to-many: orange
       default: return '#666666'; // Default: gray
+    }
+  };
+
+  // Get label for line style button
+  const getLineStyleLabel = () => {
+    switch (lineStyle) {
+      case 'straight': return '━━━';
+      case 'curved': return '⟿';
+      case 'orthogonal': return '┏━┓';
+      default: return '━━━';
     }
   };
 
@@ -739,6 +854,23 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
     };
   }, [handleResizerMouseMove, handleResizerMouseUp]);
 
+  // Hàm xử lý thay đổi màu bảng
+  const handleTableColorChange = (tableName: string, color: string) => {
+    setTables(prevTables => 
+      prevTables.map(table => 
+        table.name === tableName ? { ...table, color } : table
+      )
+    );
+    // Đóng modal sau khi chọn màu
+    setColorModalVisible(false);
+  };
+
+  // Hàm mở modal chọn màu
+  const openColorPicker = (tableName: string) => {
+    setSelectedTable(tableName);
+    setColorModalVisible(true);
+  };
+
   return (
     <EditorContainer style={{ height }}>
       <EditorPane ref={containerRef}>
@@ -783,7 +915,9 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                         stroke={color} 
                         strokeWidth="2" 
                         fill="none" 
-                        markerEnd="url(#arrowhead)" 
+                        strokeDasharray={rel.type === '-' ? '5,3' : undefined}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                       <path 
                         d={path} 
@@ -802,26 +936,57 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                   key={tableIndex} 
                   x={table.x} 
                   y={table.y}
-                  onMouseDown={(e) => handleTableMouseDown(e, table.name)}
+                  onMouseDown={(e) => {
+                    // Chỉ xử lý kéo thả khi click vào bảng, không phải vào nút menu
+                    if (!e.currentTarget.querySelector('.table-menu-trigger')?.contains(e.target as Node)) {
+                      handleTableMouseDown(e, table.name);
+                    }
+                  }}
                 >
-                  <TableHeader>{table.name}</TableHeader>
-                  <TableContent>
-                    {table.fields.map((field, fieldIndex) => (
-                      <Tooltip 
-                        key={fieldIndex} 
-                        title={field.note || `${field.name}: ${field.type}`}
-                        placement="right"
+                  <TableWrapper>
+                    <TableHeader color={table.color}>
+                      <TableName>{table.name}</TableName>
+                      <Popover
+                        trigger="click"
+                        placement="rightTop"
+                        title="Tùy chọn bảng"
+                        content={
+                          <Menu
+                            style={{ border: 'none', boxShadow: 'none', minWidth: '120px' }}
+                            items={[
+                              {
+                                key: 'change-color',
+                                icon: <BgColorsOutlined />,
+                                label: 'Đổi màu',
+                                onClick: () => openColorPicker(table.name)
+                              }
+                            ]}
+                          />
+                        }
                       >
-                        <TableRow isEven={fieldIndex % 2 === 0}>
-                          <FieldName>
-                            {field.isPk && <span style={{ color: '#faad14', marginRight: '5px' }}>🔑</span>}
-                            {field.name}
-                          </FieldName>
-                          <FieldType>{field.type}</FieldType>
-                        </TableRow>
-                      </Tooltip>
-                    ))}
-                  </TableContent>
+                        <TableMenuButton className="table-menu-trigger">
+                          <MoreOutlined style={{ color: 'white', fontSize: '16px' }} />
+                        </TableMenuButton>
+                      </Popover>
+                    </TableHeader>
+                    <TableContent>
+                      {table.fields.map((field, fieldIndex) => (
+                        <Tooltip 
+                          key={fieldIndex} 
+                          title={field.note || `${field.name}: ${field.type}`}
+                          placement="right"
+                        >
+                          <TableRow isEven={fieldIndex % 2 === 0}>
+                            <FieldName>
+                              {field.isPk && <span style={{ color: '#faad14', marginRight: '5px' }}>🔑</span>}
+                              {field.name}
+                            </FieldName>
+                            <FieldType>{field.type}</FieldType>
+                          </TableRow>
+                        </Tooltip>
+                      ))}
+                    </TableContent>
+                  </TableWrapper>
                 </TableCard>
               ))}
             </DiagramCanvas>
@@ -839,8 +1004,8 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                     top: table.y,
                     width: 280,
                     height: table.fields.length * 36 + 40,
-                    background: '#1890ff',
-                    border: '1px solid #096dd9'
+                    background: table.color || '#1890ff',
+                    border: '1px solid rgba(0,0,0,0.1)'
                   }}
                 />
               ))}
@@ -855,15 +1020,45 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
           
           {/* Zoom controls */}
           <ZoomControls>
-            <Button icon={<ZoomInOutlined />} onClick={zoomIn} />
-            <Button icon={<ZoomOutOutlined />} onClick={zoomOut} />
+            <Button icon={<ZoomInOutlined />} onClick={zoomIn} title="Zoom in"/>
+            <Button icon={<ZoomOutOutlined />} onClick={zoomOut} title="Zoom out"/>
             <Button icon={<FullscreenOutlined />} onClick={fitToView} title="Fit to view" />
-            <Button onClick={toggleLineStyle} title="Toggle line style">
-              {straightLines ? '⟹' : '⟿'}
-            </Button>
+            <Button 
+              onClick={toggleLineStyle} 
+              title="Thay đổi kiểu đường nối"
+              icon={<span style={{ fontSize: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{getLineStyleLabel()}</span>}
+            />
           </ZoomControls>
         </DiagramPane>
       </EditorPane>
+
+      {/* Modal chọn màu */}
+      <Modal
+        title="Chọn màu cho bảng"
+        open={colorModalVisible}
+        onCancel={() => setColorModalVisible(false)}
+        footer={null}
+        width={300}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+          {TABLE_COLORS.map(color => (
+            <Button
+              key={color}
+              type="text"
+              style={{
+                width: '40px',
+                height: '40px',
+                padding: 0,
+                margin: '4px',
+                backgroundColor: color,
+                border: '1px solid #d9d9d9',
+                borderRadius: '4px',
+              }}
+              onClick={() => selectedTable && handleTableColorChange(selectedTable, color)}
+            />
+          ))}
+        </div>
+      </Modal>
     </EditorContainer>
   );
 };

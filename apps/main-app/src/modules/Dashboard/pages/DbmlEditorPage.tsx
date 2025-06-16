@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Layout, Space, Typography, Spin, message, Alert, Modal, Select, Dropdown, Menu, Drawer, List, Avatar, Tag, Tooltip, Radio, Input, Form, Divider, Popover } from 'antd';
-import { 
-  DownloadOutlined, 
-  CopyOutlined, 
-  ArrowLeftOutlined, 
-  LockOutlined, 
+import { Button, Layout, Space, Typography, Spin, message, Alert, Modal, Select, Dropdown, Menu, Drawer, List, Avatar, Tag, Tooltip, Radio, Input, Form, Divider, Popover, Empty } from 'antd';
+import {
+  DownloadOutlined,
+  CopyOutlined,
+  ArrowLeftOutlined,
+  LockOutlined,
   ExclamationCircleOutlined,
   ShareAltOutlined,
   HistoryOutlined,
@@ -20,15 +20,17 @@ import {
   EditOutlined,
   DeleteOutlined,
   MoreOutlined,
-  UserOutlined
+  UserOutlined,
+  BookOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../../services/apiService';
 import { DbmlEditor } from '../components/DbmlEditor';
 import { checkProjectPermission, PermissionLevel, getPermissionText } from '../services/projectAccess.service';
-import { getLatestChangelog, getProjectVersions, VersionInfo } from '../services/changelog.service';
+import { getProjectVersions, VersionInfo } from '../services/changelog.service';
 import useWindowSize from '../../../hooks/useWindowSize';
 import moment from 'moment';
+import './EditorPage.css';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -40,7 +42,7 @@ Table ecommerce.merchants {
   id int [pk]
   country_code int [Ref: > countries.code]
   merchant_name varchar
-  
+
   "created_at" varchar
   admin_id int [Ref: > U.id, not null]
   Indexes {
@@ -116,6 +118,19 @@ interface DDLResponse {
   ddlScript: string;
 }
 
+// Interface for version creation response
+interface VersionResponse {
+  id: string;
+  projectId: string;
+  codeVersion: number;
+  changeLogId: string;
+  diffChange: string;
+  changeLog: ChangelogItem;
+  content: string;
+  createdDate: string;
+  createdBy: string;
+}
+
 // Enum for export action
 enum ExportAction {
   Download = 'download',
@@ -141,8 +156,8 @@ interface ProjectAccessResponse {
   createdBy: string;
 }
 
-// Interface for project access list
-interface ProjectAccessItem extends ProjectAccessResponse {}
+// Use ProjectAccessResponse directly instead of an empty interface
+type ProjectAccessItem = ProjectAccessResponse;
 
 export const DbmlEditorPage: React.FC = () => {
   const [dbmlCode, setDbmlCode] = useState<string>('');
@@ -181,6 +196,9 @@ export const DbmlEditorPage: React.FC = () => {
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
   const [selectedAccess, setSelectedAccess] = useState<ProjectAccessItem | null>(null);
   const [processingAction, setProcessingAction] = useState<boolean>(false);
+  const [publishingToDbdocs, setPublishingToDbdocs] = useState<boolean>(false);
+  const [publishSuccessModalVisible, setPublishSuccessModalVisible] = useState<boolean>(false);
+  const [publishedUrl, setPublishedUrl] = useState<string>('');
 
   // Determine if we should show text labels based on screen width
   const showLabels = width > 1100;
@@ -198,7 +216,7 @@ export const DbmlEditorPage: React.FC = () => {
       const timer = setTimeout(() => {
         setShowPermissionAlert(false);
       }, 3000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [permissionLevel]);
@@ -206,7 +224,7 @@ export const DbmlEditorPage: React.FC = () => {
   // Kiểm tra quyền và tải dữ liệu ban đầu
   const checkPermissionAndFetchData = async () => {
     if (!projectId) return;
-    
+
     setLoading(true);
     try {
       // Kiểm tra quyền truy cập
@@ -214,13 +232,13 @@ export const DbmlEditorPage: React.FC = () => {
       console.log("Permission check response:", permissionResponse);
       setPermissionLevel(permissionResponse.permissionLevel);
       setPermissionChecked(true);
-      
+
       // Nếu không có quyền truy cập, không cần tải dữ liệu dự án
       if (permissionResponse.permissionLevel === PermissionLevel.DENIED) {
         setLoading(false);
         return;
       }
-      
+
       // Nếu có quyền truy cập, tải dữ liệu dự án, changelog và version
       await Promise.all([
         fetchProjectData(),
@@ -237,11 +255,11 @@ export const DbmlEditorPage: React.FC = () => {
   // Tải thông tin cơ bản của dự án
   const fetchProjectData = async () => {
     if (!projectId) return;
-    
+
     try {
       // Replace with your actual API endpoint
       const response = await apiService.get<ApiResponse<ProjectData>>(`/api/v1/projects/${projectId}`);
-      
+
       const projectData = response.data;
       if (projectData) {
         setProjectName(projectData.projectCode || 'Untitled Project');
@@ -256,11 +274,11 @@ export const DbmlEditorPage: React.FC = () => {
   // Tải danh sách phiên bản
   const fetchVersions = async () => {
     if (!projectId) return;
-    
+
     try {
       const versionsList = await getProjectVersions(projectId);
       setVersions(versionsList);
-      
+
       // Nếu có phiên bản, tải nội dung của phiên bản mới nhất
       if (versionsList.length > 0) {
         const latestVersion = versionsList[0]; // API trả về danh sách đã sắp xếp theo thứ tự mới nhất
@@ -268,7 +286,7 @@ export const DbmlEditorPage: React.FC = () => {
         setCurrentVersion(latestVersion.id);
         setHasChanges(false);
       }
-      
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching versions:', error);
@@ -296,26 +314,26 @@ export const DbmlEditorPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!projectId) return;
-    
+
     setLoading(true);
     try {
       // Lưu nội dung DBML vào dự án
       await apiService.put(`/api/v1/projects/${projectId}`, {
         dbmlContent: dbmlCode
       });
-      
+
       // Tạo changelog mới
       await apiService.post('/api/v1/changelogs', {
         projectId: projectId,
         content: dbmlCode
       });
-      
+
       message.success('Project saved successfully and new changelog created');
       setHasChanges(false);
-      
+
       // Xóa thông tin version đã chọn để hiển thị changelog mới nhất
       setCurrentVersion('');
-      
+
       // Refresh version history và changelog sau khi lưu
       await Promise.all([
         fetchVersions(),
@@ -344,7 +362,7 @@ export const DbmlEditorPage: React.FC = () => {
     if (changelog.codeChangeLog === currentChangelogCode) {
       return;
     }
-    
+
     // Lưu changelog được chọn và hiển thị popup xác nhận
     setSelectedChangelog(changelog);
     setConfirmModalVisible(true);
@@ -358,7 +376,7 @@ export const DbmlEditorPage: React.FC = () => {
       setHasChanges(false);
       message.success(`Reverted to v${selectedChangelog.codeChangeLog}`);
       setHistoryDrawerVisible(false);
-      
+
       // Khi quay về một changelog, xóa thông tin về version đã chọn
       setCurrentVersion('');
     }
@@ -399,7 +417,7 @@ export const DbmlEditorPage: React.FC = () => {
     try {
       // Tìm phiên bản trong danh sách đã tải
       const selectedVersion = versions.find(v => v.id === versionId);
-      
+
       if (selectedVersion) {
         setDbmlCode(selectedVersion.content);
         setCurrentVersion(versionId);
@@ -418,16 +436,16 @@ export const DbmlEditorPage: React.FC = () => {
   // Fetch changelogs
   const fetchChangelogs = async () => {
     if (!projectId) return;
-    
+
     setChangelogLoading(true);
     try {
       const response = await apiService.get<ChangelogItem[]>(`/api/v1/changelogs/project/${projectId}`);
       setChangelogs(response);
-      
+
       // Lấy changelog mới nhất nếu có
       if (response.length > 0) {
         const latestChangelog = response[0]; // Giả sử API trả về danh sách đã sắp xếp theo thứ tự mới nhất
-        
+
         // Chỉ cập nhật nội dung và hiển thị changelog mới nhất nếu không có version được chọn
         if (!currentVersion) {
           setDbmlCode(latestChangelog.content);
@@ -482,11 +500,11 @@ export const DbmlEditorPage: React.FC = () => {
       message.error('Project ID is missing');
       return;
     }
-    
+
     setGeneratingDDL(true);
     try {
       let response: DDLResponse;
-      
+
       // Determine which API to call based on whether we're using version or changelog
       if (currentVersion) {
         // Find the version number from the selected version
@@ -494,7 +512,7 @@ export const DbmlEditorPage: React.FC = () => {
         if (!selectedVersion || selectedVersion.codeVersion === undefined) {
           throw new Error('Version information is missing');
         }
-        
+
         // Call API for version-based DDL
         response = await apiService.post<DDLResponse>('/api/v1/versions/generate-single-ddl', {
           projectId: projectId,
@@ -511,11 +529,11 @@ export const DbmlEditorPage: React.FC = () => {
       } else {
         throw new Error('No version or changelog selected');
       }
-      
+
       // Process the DDL script based on selected action
       if (response && response.ddlScript) {
         setGeneratedDDL(response.ddlScript);
-        
+
         if (exportAction === ExportAction.Download) {
           // Download the DDL script
           const dialectName = getDatabaseDialectName(selectedDialect);
@@ -572,17 +590,17 @@ export const DbmlEditorPage: React.FC = () => {
   // Fetch project accesses
   const fetchProjectAccesses = async () => {
     if (!projectId) return;
-    
+
     setLoadingAccesses(true);
     try {
       const response = await apiService.get<ProjectAccessItem[]>(`/api/v1/project-access/list/${projectId}`);
-      
+
       if (response && Array.isArray(response)) {
         setProjectAccesses(response);
       }
     } catch (error: any) {
       console.error('Error fetching project accesses:', error);
-      
+
       if (error.response?.status === 403) {
         message.error('You do not have permission to view shared users');
       } else {
@@ -599,22 +617,50 @@ export const DbmlEditorPage: React.FC = () => {
     fetchProjectAccesses();
   };
 
+  // Handle publish to dbdocs
+  const handlePublishToDbdocs = async () => {
+    if (!projectId) return;
+
+    setPublishingToDbdocs(true);
+    try {
+      // Call the publish API endpoint
+      const response = await apiService.post<{url: string}>(`/api/v1/projects/${projectId}/publish`, {
+        projectId: projectId
+      });
+
+      // Set the published URL (assuming the API returns a URL)
+      const publishUrl = response.url || `https://dbdocs.io/docs/${projectId}`;
+      setPublishedUrl(publishUrl);
+
+      // Refresh versions after publishing
+      await fetchVersions();
+
+      // Show success modal
+      setPublishSuccessModalVisible(true);
+    } catch (error) {
+      console.error('Error publishing to dbdocs:', error);
+      message.error('Failed to publish project to dbdocs.io');
+    } finally {
+      setPublishingToDbdocs(false);
+    }
+  };
+
   // Handle share invite
   const handleShareInvite = async (values: ShareFormValues) => {
     if (!projectId) {
       message.error('Project ID is missing');
       return;
     }
-    
+
     setInviting(true);
     try {
       // Call API to invite user
       const response = await apiService.post<ProjectAccessResponse>('/api/v1/project-access/add-user', {
         projectId: projectId,
         emailOrUsername: values.recipient,
-        permission: values.permission === PermissionLevel.VIEW ? 1 : 2 // 1: View, 2: Edit
+        permission: values.permission === PermissionLevel.VIEW ? 2 : 3 // 2: View, 3: Edit
       });
-      
+
       // If successful, show success message with user information
       if (response && response.userName) {
         const displayName = response.userName;
@@ -623,13 +669,13 @@ export const DbmlEditorPage: React.FC = () => {
       } else {
         message.success(`Invitation sent to ${values.recipient}`);
       }
-      
+
       form.resetFields();
       // Refresh the list of project accesses
       fetchProjectAccesses();
     } catch (error: any) {
       console.error('Error inviting user:', error);
-      
+
       // Handle different error cases
       if (error.response) {
         switch (error.response.status) {
@@ -666,7 +712,7 @@ export const DbmlEditorPage: React.FC = () => {
   // Handle edit permission
   const handleEditPermission = async () => {
     if (!selectedAccess || !projectId) return;
-    
+
     setProcessingAction(true);
     try {
       await apiService.put('/api/v1/project-access/permission', {
@@ -674,7 +720,7 @@ export const DbmlEditorPage: React.FC = () => {
         identifier: selectedAccess.identifier,
         permission: editPermission
       });
-      
+
       const displayName = selectedAccess.userName || 'User';
       const displayEmail = selectedAccess.userEmail ? ` (${selectedAccess.userEmail})` : '';
       message.success(`Permission updated for ${displayName}${displayEmail}`);
@@ -683,7 +729,7 @@ export const DbmlEditorPage: React.FC = () => {
       fetchProjectAccesses();
     } catch (error: any) {
       console.error('Error updating permission:', error);
-      
+
       if (error.response?.status === 403) {
         message.error('You do not have permission to change user access');
       } else {
@@ -703,11 +749,11 @@ export const DbmlEditorPage: React.FC = () => {
   // Handle delete access
   const handleDeleteAccess = async () => {
     if (!selectedAccess || !projectId) return;
-    
+
     setProcessingAction(true);
     try {
       await apiService.delete(`/api/v1/project-access/${projectId}/${selectedAccess.identifier}`);
-      
+
       const displayName = selectedAccess.userName || 'User';
       const displayEmail = selectedAccess.userEmail ? ` (${selectedAccess.userEmail})` : '';
       message.success(`Access removed for ${displayName}${displayEmail}`);
@@ -716,7 +762,7 @@ export const DbmlEditorPage: React.FC = () => {
       fetchProjectAccesses();
     } catch (error: any) {
       console.error('Error removing access:', error);
-      
+
       if (error.response?.status === 403) {
         message.error('You do not have permission to remove user access');
       } else {
@@ -731,9 +777,13 @@ export const DbmlEditorPage: React.FC = () => {
   const getPermissionText = (permission: number) => {
     switch (permission) {
       case 1:
-        return 'View';
+        return 'Owner';
       case 2:
+        return 'View';
+      case 3:
         return 'Edit';
+      case 4:
+        return 'Denied';
       default:
         return 'Unknown';
     }
@@ -741,7 +791,7 @@ export const DbmlEditorPage: React.FC = () => {
 
   // Xác định xem người dùng có quyền chỉnh sửa hay không
   const canEdit = permissionLevel === PermissionLevel.OWNER || permissionLevel === PermissionLevel.EDIT;
-  
+
   console.log("Permission level:", permissionLevel);
   console.log("Can edit:", canEdit);
   console.log("PermissionLevel.OWNER:", PermissionLevel.OWNER);
@@ -752,8 +802,8 @@ export const DbmlEditorPage: React.FC = () => {
     return (
       <Layout style={{ height: '100vh' }}>
         <Header style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center' }}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
+          <Button
+            icon={<ArrowLeftOutlined />}
             style={{ marginRight: '15px' }}
             onClick={handleBack}
           />
@@ -787,152 +837,225 @@ export const DbmlEditorPage: React.FC = () => {
   }
 
   return (
-    <Layout style={{ height: '100vh' }}>
-      <Header style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
-            style={{ marginRight: '15px' }}
+    <Layout className="dbml-editor-layout">
+      <Header className="editor-header">
+        <div className="editor-header-left">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
             onClick={handleBack}
-          />
-          <Title level={3} style={{ margin: 0, fontSize: showLabels ? '1.17em' : '1em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: showLabels ? '400px' : '200px' }}>{projectCode || 'Diagram Editor'}</Title>
-          {/* Chỉ hiển thị tag changelog khi đã chọn changelog và không chọn version */}
-          {currentChangelogCode && !currentVersion && (
-            <Tag color="blue" style={{ marginLeft: '10px' }}>
-              <ClockCircleOutlined /> v{currentChangelogCode}
-            </Tag>
-          )}
+            className="editor-back-btn"
+          >
+            Back
+          </Button>
+          <div className="project-title">
+            <Title level={4} style={{ margin: 0, marginLeft: 16 }}>{projectName}</Title>
+            {permissionLevel === PermissionLevel.VIEW && (
+              <Tag color="blue" style={{ marginLeft: 8 }}>View Only</Tag>
+            )}
+          </div>
         </div>
-        <Space size={showLabels ? 'middle' : 'small'} wrap={false} style={{ overflowX: 'auto' }}>
-          {showPermissionAlert && permissionLevel !== null && (
-            <Alert
-              message={getPermissionText(permissionLevel)}
-              type={canEdit ? "success" : "info"}
-              showIcon
-              style={{ marginRight: '15px' }}
-            />
-          )}
-          {versions.length > 0 && (
-            <Select
-              style={{ width: showLabels ? 150 : 100 }}
-              value={currentVersion}
-              onChange={handleVersionChange}
-              options={versions.map(v => ({ 
-                label: showLabels ? `Version ${v.codeVersion}` : `V${v.codeVersion}`, 
-                value: v.id 
-              }))}
-            />
-          )}
-          <Button icon={<ShareAltOutlined />} onClick={handleShareClick}>
-            {showLabels && 'Share'}
-          </Button>
-          <Button icon={<HistoryOutlined />} onClick={handleHistoryClick}>
-            {showLabels && 'History'}
-          </Button>
-          <Button icon={<ImportOutlined />} onClick={() => message.info('Import functionality will be implemented')}>
-            {showLabels && 'Import'}
-          </Button>
-          <Dropdown overlay={
-            <Menu>
-              <Menu.Item key="png">PNG</Menu.Item>
-              <Menu.Item key="svg">SVG</Menu.Item>
-              <Menu.Item key="dbml">DBML</Menu.Item>
-              <Menu.Divider />
-              <Menu.Item key="ddl" icon={<DatabaseOutlined />} onClick={handleExportDDLClick}>
-                Generate SQL DDL
-              </Menu.Item>
-            </Menu>
-          } trigger={['click']}>
-            <Button icon={<ExportOutlined />}>
-              {showLabels && 'Export'} {showLabels && <DownOutlined />}
-            </Button>
-          </Dropdown>
-          <Button 
-            icon={<CopyOutlined />} 
-            onClick={handleCopyCode}
-          >
-            {showLabels && 'Copy DBML'}
-          </Button>
+
+        <div className="editor-header-right">
           {canEdit && (
-            <Button 
-              onClick={handleSave}
-              type="primary"
-              disabled={!hasChanges}
-              icon={showLabels ? null : <CloudUploadOutlined />}
-            >
-              {showLabels ? 'Save' : ''}
-            </Button>
+            <Space>
+              <Button
+                type={hasChanges ? "primary" : "default"}
+                icon={<CloudUploadOutlined />}
+                onClick={handleSave}
+                disabled={!hasChanges || loading}
+                className="editor-action-btn"
+              >
+                {showLabels && 'Save Changes'}
+              </Button>
+              <Divider type="vertical" style={{ height: 24, margin: '0 8px' }} />
+            </Space>
           )}
-          <Button 
-            icon={<DownloadOutlined />} 
-            onClick={handleDownload}
-          >
-            {showLabels && 'Download'}
-          </Button>
-          <Button 
-            type="primary" 
-            icon={<CloudUploadOutlined />}
-            onClick={() => message.info('Publish functionality will be implemented')}
-          >
-            {showLabels && 'Publish to dbdocs'}
-          </Button>
-        </Space>
+
+          <Space className="editor-actions">
+            <Tooltip title="Project History">
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={handleHistoryClick}
+                className="editor-action-btn"
+              >
+                {showLabels && 'History'}
+              </Button>
+            </Tooltip>
+
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'dbml',
+                    label: 'Download DBML',
+                    icon: <DownloadOutlined />,
+                    onClick: handleDownload
+                  },
+                  {
+                    key: 'copy',
+                    label: 'Copy DBML',
+                    icon: <CopyOutlined />,
+                    onClick: handleCopyCode
+                  },
+                  {
+                    key: 'ddl',
+                    label: 'Export SQL DDL',
+                    icon: <DatabaseOutlined />,
+                    onClick: handleExportDDLClick
+                  }
+                ]
+              }}
+              trigger={['click']}
+            >
+              <Button className="editor-action-btn">
+                <Space>
+                  <ExportOutlined />
+                  {showLabels && 'Export'}
+                  <DownOutlined style={{ fontSize: 12 }} />
+                </Space>
+              </Button>
+            </Dropdown>
+
+            <Tooltip title="Share Project">
+              <Button
+                icon={<ShareAltOutlined />}
+                onClick={handleShareClick}
+                className="editor-action-btn"
+              >
+                {showLabels && 'Share'}
+              </Button>
+            </Tooltip>
+
+            <Tooltip title="Publish to dbdocs.io">
+              <Button
+                type="primary"
+                icon={<BookOutlined />}
+                onClick={handlePublishToDbdocs}
+                loading={publishingToDbdocs}
+                className="editor-action-btn"
+                style={{ backgroundColor: '#1677ff' }}
+              >
+                {showLabels && 'Publish to dbdocs'}
+              </Button>
+            </Tooltip>
+          </Space>
+        </div>
       </Header>
-      <Content style={{ height: 'calc(100vh - 64px)' }}>
-        <DbmlEditor 
-          initialValue={dbmlCode} 
-          onChange={handleDbmlChange} 
-          height="100%" 
-          readOnly={!canEdit}
-          type="dbml"
-        />
+
+      <Content className="editor-content">
+        {loading ? (
+          <div className="editor-loading">
+            <Spin size="large" tip="Loading editor..." />
+          </div>
+        ) : permissionLevel === PermissionLevel.DENIED ? (
+          <div className="editor-denied">
+            <Alert
+              message="Access Denied"
+              description="You don't have permission to view this project."
+              type="error"
+              showIcon
+              action={
+                <Button size="small" type="primary" onClick={handleBack}>
+                  Go Back
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            {showPermissionAlert && (
+              <Alert
+                message={`You have ${getPermissionText(permissionLevel ?? 0)} access to this project.`}
+                type="info"
+                showIcon
+                closable
+                onClose={() => setShowPermissionAlert(false)}
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            <div className="editor-toolbar">
+              <div>
+                <Text strong>Version: </Text>
+                <Select
+                  value={currentVersion || undefined}
+                  loading={loading}
+                  style={{ width: 180 }}
+                  onChange={handleVersionChange}
+                  placeholder="Select version"
+                >
+                  {versions.map(v => (
+                    <Select.Option key={v.id} value={v.id}>
+                      {`Version ${v.codeVersion}`}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            <div className="editor-wrapper">
+              <DbmlEditor
+                initialValue={dbmlCode || ''}
+                onChange={handleDbmlChange}
+                readOnly={!canEdit}
+                type="dbml"
+                height="100%"
+              />
+            </div>
+          </>
+        )}
       </Content>
 
       {/* History Drawer */}
       <Drawer
-        title="Changelog History"
+        title="Project History"
         placement="right"
-        onClose={() => setHistoryDrawerVisible(false)}
+        width={500}
         open={historyDrawerVisible}
-        width={400}
+        onClose={() => setHistoryDrawerVisible(false)}
       >
         {changelogLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-            <Spin tip="Loading changelog history..." />
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin />
+            <div style={{ marginTop: 16 }}>Loading history...</div>
           </div>
+        ) : changelogs.length === 0 ? (
+          <Empty description="No history records found" />
         ) : (
           <List
-            itemLayout="horizontal"
+            className="changelog-list"
             dataSource={changelogs}
             renderItem={(item) => (
               <List.Item
+                className="changelog-item"
                 actions={[
-                  <Tooltip title="Revert to this changelog">
-                    <Button 
-                      type="text" 
-                      icon={<RollbackOutlined />} 
+                  <Tooltip title="View this version">
+                    <Button
+                      size="small"
+                      icon={<BookOutlined />}
                       onClick={() => handleApplyChangelog(item)}
-                      disabled={item.codeChangeLog === currentChangelogCode}
                     />
                   </Tooltip>
                 ]}
               >
                 <List.Item.Meta
-                  avatar={<Avatar src={item.creatorAvatarUrl || 'https://joeschmoe.io/api/v1/random'} />}
+                  avatar={
+                    item.creatorAvatarUrl ? (
+                      <Avatar src={item.creatorAvatarUrl} />
+                    ) : (
+                      <Avatar icon={<UserOutlined />} />
+                    )
+                  }
                   title={
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <span>v{item.codeChangeLog}</span>
-                      {item.codeChangeLog === currentChangelogCode && (
-                        <Tag color="green" style={{ marginLeft: 8 }}>Current</Tag>
-                      )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{item.creatorName || 'Unknown user'}</span>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {formatDate(item.createdDate)}
+                      </Text>
                     </div>
                   }
-                  description={
-                    <div>
-                      <div>{item.creatorName || 'Unknown user'}</div>
-                      <div style={{ fontSize: '12px', color: '#999' }}>{formatDate(item.createdDate)}</div>
-                    </div>
-                  }
+                  description={item.content || 'No description'}
                 />
               </List.Item>
             )}
@@ -952,7 +1075,7 @@ export const DbmlEditorPage: React.FC = () => {
       >
         <div style={{ marginBottom: '20px' }}>
           <p>Generate SQL DDL script for the selected database type:</p>
-          
+
           <div style={{ marginTop: '16px' }}>
             <Select
               style={{ width: '100%' }}
@@ -967,14 +1090,14 @@ export const DbmlEditorPage: React.FC = () => {
               ]}
             />
           </div>
-          
+
           <div style={{ marginTop: '16px' }}>
             <Radio.Group onChange={handleExportActionChange} value={exportAction}>
               <Radio value={ExportAction.Download}>Download SQL file</Radio>
               <Radio value={ExportAction.Copy}>Copy to clipboard</Radio>
             </Radio.Group>
           </div>
-          
+
           <div style={{ marginTop: '16px' }}>
             {currentVersion && (
               <Alert
@@ -998,12 +1121,12 @@ export const DbmlEditorPage: React.FC = () => {
               />
             )}
           </div>
-          
+
           {generatedDDL && exportAction === ExportAction.Copy && (
             <div style={{ marginTop: '16px' }}>
               <Typography.Text strong>Generated SQL:</Typography.Text>
-              <div 
-                style={{ 
+              <div
+                style={{
                   marginTop: '8px',
                   padding: '8px',
                   border: '1px solid #d9d9d9',
@@ -1073,12 +1196,12 @@ export const DbmlEditorPage: React.FC = () => {
                       { required: true, message: 'Please enter an email or username' },
                     ]}
                   >
-                    <Input 
-                      prefix={<MailOutlined />} 
-                      placeholder="Enter email or username" 
+                    <Input
+                      prefix={<MailOutlined />}
+                      placeholder="Enter email or username"
                     />
                   </Form.Item>
-                  
+
                   <Form.Item
                     name="permission"
                     style={{ width: '120px', marginBottom: '10px' }}
@@ -1089,10 +1212,10 @@ export const DbmlEditorPage: React.FC = () => {
                       <Select.Option value={PermissionLevel.EDIT}>Edit</Select.Option>
                     </Select>
                   </Form.Item>
-                  
+
                   <Form.Item style={{ marginBottom: '10px' }}>
-                    <Button 
-                      type="primary" 
+                    <Button
+                      type="primary"
                       loading={inviting}
                       onClick={() => form.submit()}
                       icon={<UserAddOutlined />}
@@ -1102,13 +1225,13 @@ export const DbmlEditorPage: React.FC = () => {
                   </Form.Item>
                 </div>
               </Form>
-              
+
               <Divider style={{ margin: '16px 0' }} />
             </>
           )}
-          
+
           <Typography.Title level={5}>People with Access</Typography.Title>
-          
+
           {loadingAccesses ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <Spin tip="Loading..." />
@@ -1119,24 +1242,24 @@ export const DbmlEditorPage: React.FC = () => {
               renderItem={(item) => (
                 <List.Item
                   actions={
-                    permissionLevel === PermissionLevel.OWNER 
+                    permissionLevel === PermissionLevel.OWNER
                       ? [
                           <Popover
                             key="more"
                             content={
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <Button 
-                                  type="text" 
-                                  icon={<EditOutlined />} 
+                                <Button
+                                  type="text"
+                                  icon={<EditOutlined />}
                                   onClick={() => showEditModal(item)}
                                   style={{ textAlign: 'left' }}
                                 >
                                   Change permission
                                 </Button>
-                                <Button 
-                                  type="text" 
-                                  danger 
-                                  icon={<DeleteOutlined />} 
+                                <Button
+                                  type="text"
+                                  danger
+                                  icon={<DeleteOutlined />}
                                   onClick={() => showDeleteModal(item)}
                                   style={{ textAlign: 'left' }}
                                 >
@@ -1158,6 +1281,9 @@ export const DbmlEditorPage: React.FC = () => {
                     title={
                       <div>
                         {item.userName || 'Unnamed User'}
+                        {item.permission === 1 && (
+                          <Tag color="gold" style={{ marginLeft: 8, fontSize: '11px' }}>OWNER</Tag>
+                        )}
                         {item.userEmail && (
                           <div style={{ fontSize: '12px', color: '#666' }}>
                             {item.userEmail}
@@ -1166,7 +1292,7 @@ export const DbmlEditorPage: React.FC = () => {
                       </div>
                     }
                     description={
-                      <Tag color={item.permission === 2 ? 'blue' : 'default'}>
+                      <Tag color={item.permission === 3 ? 'green' : item.permission === 2 ? 'blue' : 'gold'}>
                         {getPermissionText(item.permission)}
                       </Tag>
                     }
@@ -1178,7 +1304,7 @@ export const DbmlEditorPage: React.FC = () => {
           )}
         </div>
       </Modal>
-      
+
       {/* Edit Permission Modal */}
       <Modal
         title="Edit Permission"
@@ -1192,18 +1318,18 @@ export const DbmlEditorPage: React.FC = () => {
           {selectedAccess?.userEmail && (
             <p style={{ color: '#666', marginTop: '-10px' }}>{selectedAccess.userEmail}</p>
           )}
-          
+
           <Select
             style={{ width: '100%' }}
             value={editPermission}
             onChange={(value) => setEditPermission(value)}
           >
-            <Select.Option value={1}>View only</Select.Option>
-            <Select.Option value={2}>Edit</Select.Option>
+            <Select.Option value={2}>View only</Select.Option>
+            <Select.Option value={3}>Edit</Select.Option>
           </Select>
         </div>
       </Modal>
-      
+
       {/* Delete Access Modal */}
       <Modal
         title="Remove Access"
@@ -1218,8 +1344,46 @@ export const DbmlEditorPage: React.FC = () => {
         )}
         <p>This action cannot be undone.</p>
       </Modal>
+
+      {/* Publish success modal */}
+      <Modal
+        title="Published to dbdocs.io"
+        open={publishSuccessModalVisible}
+        onOk={() => setPublishSuccessModalVisible(false)}
+        onCancel={() => setPublishSuccessModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setPublishSuccessModalVisible(false)}>
+            Close
+          </Button>,
+          <Button
+            key="view"
+            type="primary"
+            onClick={() => {
+              window.open(publishedUrl, '_blank');
+            }}
+          >
+            View Documentation
+          </Button>
+        ]}
+      >
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <BookOutlined style={{ fontSize: 48, color: '#1677ff', marginBottom: 16 }} />
+          <p style={{ fontSize: 16 }}>
+            Your project has been successfully published to dbdocs.io!
+          </p>
+          <Input.TextArea
+            value={publishedUrl}
+            readOnly
+            autoSize={{ minRows: 1, maxRows: 2 }}
+            style={{ marginTop: 16, marginBottom: 16 }}
+          />
+          <p>
+            You can share this link with others to view your database documentation.
+          </p>
+        </div>
+      </Modal>
     </Layout>
   );
 };
 
-export default DbmlEditorPage; 
+export default DbmlEditorPage;

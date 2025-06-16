@@ -3,7 +3,7 @@ import { ThemeProvider } from 'styled-components';
 import { ConfigProvider, Spin } from 'antd';
 import { RouterProvider } from 'react-router-dom';
 import { themeConfig } from '@vissoft-react/common';
-import { routers } from './routers';
+import { router } from './routes';
 import { AuthProvider } from './contexts/AuthContext';
 
 const queryClient = new QueryClient({
@@ -54,7 +54,7 @@ export function App() {
               future={{
                 v7_startTransition: false,
               }}
-              router={routers}
+              router={router}
             />
           </AuthProvider>
         </ConfigProvider>
