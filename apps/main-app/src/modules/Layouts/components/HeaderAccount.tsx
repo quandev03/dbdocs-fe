@@ -69,12 +69,23 @@ const HeaderAccount: React.FC = () => {
     />
   );
 
+  // Hiển thị avatar của người dùng
+  const renderAvatar = () => {
+    if (user?.avatarUrl) {
+      return <UserAvatar src={user.avatarUrl} />;
+    }
+    
+    return (
+      <UserAvatar>
+        {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+      </UserAvatar>
+    );
+  };
+
   return (
     <Dropdown overlay={menu} trigger={['click']}>
       <UserDropdown>
-        <UserAvatar>
-          {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-        </UserAvatar>
+        {renderAvatar()}
         {user && (
           <UserInfo>
             <UserName>{user.name || 'User'}</UserName>

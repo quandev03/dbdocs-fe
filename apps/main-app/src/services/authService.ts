@@ -1,6 +1,27 @@
-import { API_CONFIG, AUTH_CONFIG, FRONTEND_CONFIG } from '../config';
+import { API_CONFIG, AUTH_CONFIG } from '../config';
 
-const API_BASE_URL = API_CONFIG.BASE_URL;
+// Check if we have the proper API domain
+let API_BASE_URL = API_CONFIG.BASE_URL;
+console.log("API_CONFIG.BASE_URL:", API_CONFIG.BASE_URL);
+
+// Fallback check for environment variables
+if (typeof window !== 'undefined' && (window as any)._env_) {
+  console.log("Reading from window._env_", (window as any)._env_);
+  if ((window as any)._env_.VITE_API_DOMAIN) {
+    API_BASE_URL = (window as any)._env_.VITE_API_DOMAIN;
+    console.log("Using API_BASE_URL from window._env_:", API_BASE_URL);
+  }
+}
+
+// Final fallback - verify we're not using localhost if we're supposed to use a different domain
+if (API_BASE_URL === 'http://localhost:8080' && process.env.NODE_ENV === 'production') {
+  // In production, try to use a safer default
+  console.warn("Warning: Using localhost in production! Attempting to use window location origin instead.");
+  API_BASE_URL = window.location.origin;
+}
+
+console.log("Final API_BASE_URL:", API_BASE_URL);
+
 const { TOKEN, TOKEN_TYPE, EXPIRES_IN, EXPIRY_TIME, USER_INFO } = AUTH_CONFIG.STORAGE_KEYS;
 const { GOOGLE, GITHUB } = AUTH_CONFIG.OAUTH_ENDPOINTS;
 const { WIDTH, HEIGHT } = AUTH_CONFIG.POPUP;
@@ -116,6 +137,8 @@ export const authService = {
       const top = window.innerHeight / 2 - height / 2;
       
       // Determine redirect URL with proper origin
+      // Use API_BASE_URL from environment variable
+      console.log(`API_BASE_URL for OAuth: ${API_BASE_URL}`);
       const redirectUrl = `${API_BASE_URL}${url}`;
       console.log('Opening OAuth popup to:', redirectUrl);
       
@@ -154,20 +177,15 @@ export const authService = {
         console.log('Received message event:', {
           origin: event.origin,
           data: event.data,
-          currentOrigin: window.location.origin,
-          backendOrigin: new URL(API_BASE_URL).origin,
-          frontendOrigin: FRONTEND_CONFIG.ORIGIN
+          currentOrigin: window.location.origin
         });
         
         // Accept messages from the backend origin or any origin if needed for cross-origin
-        const backendOrigin = new URL(API_BASE_URL).origin;
-        const frontendOrigin = FRONTEND_CONFIG.ORIGIN;
+        const currentOrigin = window.location.origin;
         
-        if (event.origin !== window.location.origin && 
-            event.origin !== backendOrigin && 
-            event.origin !== frontendOrigin && 
+        if (event.origin !== currentOrigin && 
             event.origin !== 'null') {
-          console.log(`Received message from unexpected origin: ${event.origin}, expected: ${window.location.origin}, ${backendOrigin}, or ${frontendOrigin}`);
+          console.log(`Received message from unexpected origin: ${event.origin}, expected: ${currentOrigin}`);
           // Don't return immediately, continue checking for data since we might need to be lenient with origins
         }
         

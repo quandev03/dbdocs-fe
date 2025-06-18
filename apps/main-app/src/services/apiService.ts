@@ -65,14 +65,28 @@ export const apiService = {
         throw new Error(errorMessage);
       }
       
-      // Return null for 204 No Content
-      if (response.status === 204) {
-        return null;
+      // Return empty object for 204 No Content or empty response
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return {};
       }
       
-      const data = await response.json();
-      console.log(`API Response from ${endpoint}:`, data);
-      return data;
+      // Check if there's content to parse
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const data = await response.json();
+          console.log(`API Response from ${endpoint}:`, data);
+          return data;
+        } catch (parseError) {
+          console.warn(`Failed to parse JSON response from ${endpoint}`, parseError);
+          // Return empty object if JSON parsing fails
+          return {};
+        }
+      } else {
+        // For non-JSON responses, just return an empty success object
+        console.log(`API Response from ${endpoint}: Non-JSON response`);
+        return {};
+      }
     } catch (error) {
       // Clean up the timeout
       clearTimeout(timeoutId);

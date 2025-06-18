@@ -1,7 +1,8 @@
 import { authService } from './authService';
+import { API_CONFIG } from '../config';
 
-const API_BASE_URL = import.meta.env.VITE_API_DOMAIN || 'http://localhost:8080';
-
+const API_BASE_URL = API_CONFIG.BASE_URL;
+console.log("API_BASE_URL:", API_BASE_URL);
 interface UserInfo {
   id: string;
   email: string;
@@ -45,10 +46,10 @@ export const userService = {
       }
 
       const userInfo = await response.json();
-      
+
       // Cache the user info in localStorage
       localStorage.setItem('user_info', JSON.stringify(userInfo));
-      
+
       return userInfo;
     } catch (error) {
       console.error('Error getting current user:', error);
@@ -76,7 +77,7 @@ export const userService = {
   hasRole: async (role: string): Promise<boolean> => {
     const user = await userService.getCurrentUser();
     if (!user || !user.roles) return false;
-    
+
     return user.roles.includes(role);
   },
 
@@ -112,7 +113,7 @@ export const userService = {
     if (!authService.hasToken()) {
       return false;
     }
-    
+
     // Then validate the token with the API
     try {
       const isValid = await authService.validateToken();
@@ -121,7 +122,7 @@ export const userService = {
         userService.logout();
         return false;
       }
-      
+
       // If token is valid, ensure we have user info
       const userInfo = await userService.getCurrentUser();
       return !!userInfo;
@@ -138,7 +139,7 @@ export const userService = {
     try {
       // Always try to get a token, even if authService.hasToken() returns false
       let token = authService.getToken();
-      
+
       // If no token from authService, try to get from localStorage directly as fallback
       if (!token) {
         const rawToken = localStorage.getItem('auth_token');
@@ -153,7 +154,7 @@ export const userService = {
           }
         }
       }
-      
+
       console.log(`Fetching user with ID: ${userId}`);
       console.log(`Request URL: ${API_BASE_URL}/api/v1/users/${userId}`);
       console.log('Auth token available:', !!token);
@@ -168,7 +169,7 @@ export const userService = {
         },
         redirect: 'follow' as RequestRedirect
       };
-      
+
       console.log('Request options:', JSON.stringify({
         ...requestOptions,
         headers: {
@@ -176,12 +177,12 @@ export const userService = {
           'Authorization': token ? 'Bearer [TOKEN_HIDDEN]' : ''
         }
       }, null, 2));
-      
+
       const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}`, requestOptions);
-      
+
       console.log('Response status:', response.status);
       console.log('Response status text:', response.statusText);
-      
+
       // Get headers in a way that's compatible with all environments
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
@@ -190,13 +191,13 @@ export const userService = {
       console.log('Response headers:', JSON.stringify(responseHeaders, null, 2));
       console.log('Response redirected:', response.redirected);
       console.log('Response URL:', response.url);
-      
+
       // If we get a redirect to the system user, use that endpoint instead
       if (response.status === 302 || (response.redirected && response.url.includes('/system'))) {
         console.log('User redirect detected, fetching system user instead');
         return await userService.getSystemUser();
       }
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           console.warn(`User with ID ${userId} not found, falling back to system user`);
@@ -210,7 +211,7 @@ export const userService = {
         }
         throw new Error(`Failed to get user info: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       console.log('Response data:', JSON.stringify(data, null, 2));
       return data;
@@ -235,7 +236,7 @@ export const userService = {
     try {
       // Always try to get a token, even if authService.hasToken() returns false
       let token = authService.getToken();
-      
+
       // If no token from authService, try to get from localStorage directly as fallback
       if (!token) {
         const rawToken = localStorage.getItem('auth_token');
@@ -250,7 +251,7 @@ export const userService = {
           }
         }
       }
-      
+
       console.log('Fetching system user');
       console.log(`Request URL: ${API_BASE_URL}/api/v1/users/system`);
       console.log('Auth token available:', !!token);
@@ -265,7 +266,7 @@ export const userService = {
         },
         redirect: 'follow' as RequestRedirect
       };
-      
+
       console.log('Request options for system user:', JSON.stringify({
         ...requestOptions,
         headers: {
@@ -273,16 +274,16 @@ export const userService = {
           'Authorization': token ? 'Bearer [TOKEN_HIDDEN]' : ''
         }
       }, null, 2));
-      
+
       const response = await fetch(`${API_BASE_URL}/api/v1/users/system`, requestOptions);
-      
+
       console.log('System user response status:', response.status);
       console.log('System user response status text:', response.statusText);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to get system user info: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       console.log('System user response data:', JSON.stringify(data, null, 2));
       return data;
@@ -291,4 +292,4 @@ export const userService = {
       return null;
     }
   }
-}; 
+};

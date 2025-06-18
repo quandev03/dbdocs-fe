@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_DOMAIN || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_DOMAIN
 
 export const authService = {
   // Check if token exists in localStorage
@@ -61,19 +61,19 @@ export const authService = {
       const height = 600;
       const left = window.innerWidth / 2 - width / 2;
       const top = window.innerHeight / 2 - height / 2;
-      
+
       const popup = window.open(
-        `${API_BASE_URL}/oauth2/authorization/google`, 
+        `${API_BASE_URL}/oauth2/authorization/google`,
         'googleLogin',
         `width=${width},height=${height},top=${top},left=${left}`
       );
-      
+
       if (!popup) {
         console.error('Popup blocked. Please allow popups for this site.');
         resolve({ isAuthenticated: false });
         return;
       }
-      
+
       // Check if popup was closed
       const checkPopupClosed = setInterval(() => {
         if (popup.closed) {
@@ -81,26 +81,26 @@ export const authService = {
           resolve({ isAuthenticated: authService.hasToken() });
         }
       }, 500);
-      
+
       // Listen for messages from popup
       const handleAuth = (event: MessageEvent) => {
         // Check message origin for security
         if (event.origin !== window.location.origin) return;
-        
+
         const data = event.data;
         if (data && data.accessToken) {
           // Save token to localStorage
           authService.saveToken(data);
-          
+
           // Close popup and resolve promise
           if (!popup.closed) popup.close();
           clearInterval(checkPopupClosed);
-          
+
           window.removeEventListener('message', handleAuth);
           resolve({ isAuthenticated: true, token: data.accessToken });
         }
       };
-      
+
       window.addEventListener('message', handleAuth);
     });
   },
@@ -116,19 +116,19 @@ export const authService = {
       const height = 600;
       const left = window.innerWidth / 2 - width / 2;
       const top = window.innerHeight / 2 - height / 2;
-      
+
       const popup = window.open(
-        `${API_BASE_URL}/oauth2/authorization/github`, 
+        `${API_BASE_URL}/oauth2/authorization/github`,
         'githubLogin',
         `width=${width},height=${height},top=${top},left=${left}`
       );
-      
+
       if (!popup) {
         console.error('Popup blocked. Please allow popups for this site.');
         resolve({ isAuthenticated: false });
         return;
       }
-      
+
       // Check if popup was closed
       const checkPopupClosed = setInterval(() => {
         if (popup.closed) {
@@ -136,26 +136,26 @@ export const authService = {
           resolve({ isAuthenticated: authService.hasToken() });
         }
       }, 500);
-      
+
       // Listen for messages from popup
       const handleAuth = (event: MessageEvent) => {
         // Check message origin for security
         if (event.origin !== window.location.origin) return;
-        
+
         const data = event.data;
         if (data && data.accessToken) {
           // Save token to localStorage
           authService.saveToken(data);
-          
+
           // Close popup and resolve promise
           if (!popup.closed) popup.close();
           clearInterval(checkPopupClosed);
-          
+
           window.removeEventListener('message', handleAuth);
           resolve({ isAuthenticated: true, token: data.accessToken });
         }
       };
-      
+
       window.addEventListener('message', handleAuth);
     });
   },
@@ -184,4 +184,4 @@ export const authService = {
       return null;
     }
   }
-}; 
+};

@@ -106,17 +106,17 @@
     padding: 0 16px;
     flex-wrap: wrap;
   }
-  
+
   .editor-toolbar {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .project-title {
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-} 
+}

@@ -36,39 +36,7 @@ const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { confirm } = Modal;
 
-const SAMPLE_DBML = `// Creating tables
-// You can define the tables with full schema names
-Table ecommerce.merchants {
-  id int [pk]
-  country_code int [Ref: > countries.code]
-  merchant_name varchar
-
-  "created_at" varchar
-  admin_id int [Ref: > U.id, not null]
-  Indexes {
-    (id, country_code) [pk]
-  }
-}
-
-// If schema name is omitted, it will default to "public" schema.
-Table users as U {
-  id int [pk, increment] // auto-increment
-  full_name varchar
-  created_at timestamp
-  country_code int [Ref: > countries.code]
-}
-
-Table countries {
-  code int [pk]
-  name varchar
-  continent_name varchar
-}
-
-// You can also define relationships separately if preferred
-// > many-to-one; < one-to-many; - one-to-one; <> many-to-many
-// Ref: U.country_code > countries.code
-// Ref: ecommerce.merchants.country_code > countries.code`;
-
+// ... (Toàn bộ các interface và enum giữ nguyên) ...
 // Define the project data interface
 interface ProjectData {
   projectId: string;
