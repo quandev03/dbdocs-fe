@@ -1,12 +1,23 @@
-import { LoaderData } from '@/hooks/useLoaderData';
-import { IUserInfo, MenuObjectItem } from '@/modules/Layouts/types';
-import { menuItems } from '@/routers/menu';
-import { convertMenuItemToItem } from '@/utils';
-import { getUrlsActive } from '@/utils/utils';
 import { ItemType, MenuItemType } from 'antd/es/menu/interface';
 import { compact } from 'lodash';
 import { safeApiClient } from './axios';
+import { authService } from './authService';
+import { userService } from './userService';
+import { apiService } from './apiService';
+import { menuItems } from '../routers/menu';
+import { convertMenuItemToItem, getUrlsActive } from '@vissoft-react/common';
 // import { requestFcmToken, revokeFcmToken } from './firebase';
+
+// Import types from the main app
+import { IUserInfo, MenuObjectItem } from '../modules/Layouts/types';
+
+interface LoaderData {
+  profile: IUserInfo;
+  menus: any[];
+  menuData: MenuObjectItem[];
+}
+
+export { authService, userService, apiService };
 
 export const globalService = {
   async initApp(): Promise<LoaderData> {

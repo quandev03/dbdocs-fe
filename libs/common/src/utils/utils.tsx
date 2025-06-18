@@ -125,15 +125,15 @@ export function convertVietnameseToEnglish(text: string) {
     Ô: 'OO',
     Ơ: 'OW',
     Ư: 'UW',
-    ă: 'aw',
+    đ: 'd',
+    Đ: 'D',
   };
 
-  let result = text;
-  for (const [vietnameseChar, englishChar] of Object.entries(vowelMap)) {
-    result = result.replace(new RegExp(vietnameseChar, 'g'), englishChar);
-  }
-
-  return result.replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  // Replace each special Vietnamese character with its English equivalent
+  return text
+    .split('')
+    .map((char) => vowelMap[char as keyof typeof vowelMap] || char)
+    .join('');
 }
 
 export const parseValue = (val: AnyElement) => {

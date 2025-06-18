@@ -10,36 +10,19 @@
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
-    "lib": [
-      "es2020",
-      "dom"
-    ],
+    "lib": ["es2020", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@vissoft-react/common": [
-        "libs/common/src/index.ts"
-      ],
-      "@main-app/routers/*": [
-        "apps/main-app/src/routers/*"
-      ],
-      "@main-app/modules/*": [
-        "apps/main-app/src/modules/*"
-      ],
-      "@main-app/services/*": [
-        "apps/main-app/src/services/*"
-      ],
-      "@main-app/assets/*": [
-        "apps/main-app/src/assets/*"
-      ],
-      "@main-app/hooks/*": [
-        "apps/main-app/src/hooks/*"
-      ]
+      "@main-app/assets/*": ["apps/main-app/src/assets/*"],
+      "@main-app/hooks/*": ["apps/main-app/src/hooks/*"],
+      "@main-app/modules/*": ["apps/main-app/src/modules/*"],
+      "@main-app/routers/*": ["apps/main-app/src/routers/*"],
+      "@main-app/services/*": ["apps/main-app/src/services/*"],
+      "@vissoft-react/common": ["libs/common/src/index.ts"],
+      "@vissoft-react/dbml-editor": ["libs/dbml-editor/src/index.ts"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "tmp"
-  ]
+  "exclude": ["node_modules", "tmp"]
 }
