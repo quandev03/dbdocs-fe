@@ -246,15 +246,20 @@ export const DbmlEditorPage: React.FC = () => {
     try {
       const versionsList = await getProjectVersions(projectId);
       setVersions(versionsList);
-
-      // Nếu có phiên bản, tải nội dung của phiên bản mới nhất
-      if (versionsList.length > 0) {
-        const latestVersion = versionsList[0]; // API trả về danh sách đã sắp xếp theo thứ tự mới nhất
-        setDbmlCode(latestVersion.content);
-        setCurrentVersion(latestVersion.id);
+      if (currentVersion) {
+        const existingVersion = versionsList.find(v => v.id === currentVersion);
+        if (!existingVersion && versionsList.length > 0) {
+          setCurrentVersion(versionsList[0].id);
+          setDbmlCode(versionsList[0].content);
+          setCurrentChangelogCode('');
+          setHasChanges(false);
+        }
+      }
+      else if (versionsList.length > 0 && !currentChangelogCode) {
+        setCurrentVersion(versionsList[0].id);
+        setDbmlCode(versionsList[0].content);
         setHasChanges(false);
       }
-
       setLoading(false);
     } catch (error) {
       console.error('Error fetching versions:', error);
@@ -285,10 +290,6 @@ export const DbmlEditorPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // Lưu nội dung DBML vào dự án
-      await apiService.put(`/api/v1/projects/${projectId}`, {
-        dbmlContent: dbmlCode
-      });
 
       // Tạo changelog mới
       await apiService.post('/api/v1/changelogs', {
@@ -591,8 +592,17 @@ export const DbmlEditorPage: React.FC = () => {
 
     setPublishingToDbdocs(true);
     try {
+      //
+      if(hasChanges){
+        // Tạo changelog mới
+        await apiService.post('/api/v1/changelogs', {
+          projectId: projectId,
+          content: dbmlCode
+        });
+      }
+
       // Call the publish API endpoint
-      const response = await apiService.post<{url: string}>(`/api/v1/projects/${projectId}/publish`, {
+      const response = await apiService.post<{url: string}>(`/api/v1/versions`, {
         projectId: projectId
       });
 
