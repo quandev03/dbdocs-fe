@@ -80,6 +80,24 @@ export const router = createBrowserRouter([
     errorElement: <NotFound />,
   },
   {
+    path: '/project/:shareType/:projectId/docs',
+    element: (
+      <ErrorBoundary>
+        <DocumentationPage />
+      </ErrorBoundary>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/project/:shareType/:projectId',
+    element: (
+      <ErrorBoundary>
+        <DocumentationPage />
+      </ErrorBoundary>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
     path: '*',
     element: <NotFound />,
   },

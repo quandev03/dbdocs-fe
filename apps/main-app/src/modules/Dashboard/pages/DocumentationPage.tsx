@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { authService } from '../../../services/authService';
 import {
   Layout,
   Tabs,
@@ -46,7 +47,13 @@ import {
   ZoomInOutlined,
   FullscreenOutlined,
   DiffOutlined,
-  CodeOutlined
+  CodeOutlined,
+  ShareAltOutlined,
+  LockOutlined,
+  GlobalOutlined,
+  LinkOutlined,
+  TeamOutlined,
+  CopyOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { apiService } from '../../../services/apiService';
@@ -54,10 +61,12 @@ import { DbmlEditor } from '../components/DbmlEditor';
 import MonacoEditor from '@monaco-editor/react';
 import * as diff from 'diff';
 import CodeCompareModal from './CodeCompareModal';
+import axios from 'axios';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+const { Option } = Select;
 
 // Custom icons
 const SortDescendingOutlined: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
@@ -167,6 +176,11 @@ interface SchemaStructure {
   isExpanded?: boolean;
 }
 
+interface ShareFormValues {
+  shareType: number;
+  passwordShare: string | null;
+}
+
 const DocumentationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('wiki');
   const [project, setProject] = useState<ProjectDetails | null>(null);
@@ -190,16 +204,96 @@ const DocumentationPage: React.FC = () => {
   const [selectedVersionForCompare, setSelectedVersionForCompare] = useState<VersionInfo | null>(null);
   const [previousVersion, setPreviousVersion] = useState<VersionInfo | null>(null);
   const [diffResult, setDiffResult] = useState<string>('');
+  const [shareModalVisible, setShareModalVisible] = useState<boolean>(false);
+  const [shareLoading, setShareLoading] = useState<boolean>(false);
+  const [shareType, setShareType] = useState<number>(1); // Default to public
+  const [sharePassword, setSharePassword] = useState<string>('');
+  const [sharedLink, setSharedLink] = useState<string>('');
+  const [showPasswordField, setShowPasswordField] = useState<boolean>(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [isSharedProject, setIsSharedProject] = useState<boolean>(false);
+  const [sharedProjectId, setSharedProjectId] = useState<string>('');
+  const [sharedProjectType, setSharedProjectType] = useState<number>(0);
+  const [accessCall, setAccessCall] = useState<boolean>(false);
 
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
   // Reference to the DbmlEditor component
   const dbmlEditorRef = useRef<any>(null);
+  useEffect(() => {
+    // Biến cờ để kiểm tra xem component có còn được mount hay không
+    let isMounted = true;
+
+    // Định nghĩa một hàm async riêng bên trong để lấy dữ liệu
+    const fetchCurrentUser = async () => {
+      try {
+        console.log("get data user");
+        const currentUser: {
+          email: string;
+          fullName: string;
+          avatarUrl: string;
+        } | null = await authService.getCurrentUser();
+
+        console.log("currentUser", currentUser);
+
+        // Chỉ cập nhật state nếu component vẫn còn được mount
+        if (isMounted) {
+          setCreatorInfo({
+            fullName: currentUser?.fullName || currentUser?.email || 'Unknown User',
+            avatarUrl: currentUser?.avatarUrl || '',
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch current user:", error);
+        // Bạn có thể set một state lỗi ở đây nếu cần
+        if (isMounted) {
+          setCreatorInfo({
+            fullName: 'Unknown User',
+            avatarUrl: '',
+          });
+        }
+      }
+    };
+
+    fetchCurrentUser();
+
+    // Đây là hàm cleanup, nó sẽ chạy khi component unmount
+    // Ta sẽ set cờ isMounted thành false để ngăn việc cập nhật state trên một component đã unmount
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (projectId) {
-      fetchProjectDetails();
+      const path = window.location.pathname;
+
+      // Check if it's a shared project URL format
+      if (path.startsWith('/project/')) {
+        const parts = path.split('/');
+        // Need at least 4 parts for the format /project/:shareType/:projectId
+        if (parts.length >= 4) {
+          const shareType = parseInt(parts[2], 10);
+          const projectId = parts[3];
+
+          setIsSharedProject(true);
+          setSharedProjectId(projectId);
+          setSharedProjectType(shareType);
+          setLoading(false)
+
+          // If password protected, show password modal
+          if (shareType === 3) {
+            setPasswordModalVisible(true);
+          } else {
+            // Otherwise, try to access directly
+            handleSharedProjectAccess(projectId, shareType);
+          }
+        }else{
+          fetchProjectDetails();
+        }
+      }
       fetchVersions();
       fetchChangelogs();
     }
@@ -227,6 +321,7 @@ const DocumentationPage: React.FC = () => {
 
   const fetchProjectDetails = async () => {
     try {
+      // call api with projectId
       const response = await apiService.get<ProjectDetails>(`/api/v1/projects/${projectId}`);
 
       // Create a normalized project object that works with our UI
@@ -239,14 +334,6 @@ const DocumentationPage: React.FC = () => {
       };
 
       setProject(normalizedProject);
-
-      // Use provided creator information directly instead of fetching
-      if (response.ownerId) {
-        setCreatorInfo({
-          fullName: response.ownerEmail || 'Unknown User',
-          avatarUrl: response.ownerAvatarUrl || ''
-        });
-      }
 
       // Calculate stats from DBML content
       if (normalizedProject.dbmlContent) {
@@ -599,11 +686,11 @@ const DocumentationPage: React.FC = () => {
             <Space>
               <Avatar
                 size="small"
-                src={creatorInfo?.avatarUrl}
-                icon={!creatorInfo?.avatarUrl ? <UserOutlined /> : undefined}
+                src={project.ownerAvatarUrl}
+                icon={!project.ownerAvatarUrl ? <UserOutlined /> : undefined}
                 style={{ marginRight: '8px' }}
               />
-              <Text>{creatorInfo?.fullName || project.creatorName}</Text>
+              <Text>{project.ownerEmail}</Text>
             </Space>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
@@ -1416,6 +1503,128 @@ const DocumentationPage: React.FC = () => {
     setPreviousVersion(null);
   };
 
+  // Add this function to handle the initialization of project sharing
+  const initializeProjectSharing = () => {
+    // Reset all share-related states
+    setShareType(1);
+    setSharePassword('');
+    setSharedLink('');
+    setShowPasswordField(false);
+    // Show the modal
+    setShareModalVisible(true);
+  };
+
+  // Add this function to handle share type selection
+  const handleShareTypeChange = (value: number) => {
+    setShareType(value);
+    setShowPasswordField(value === 3); // Show password field only for protected sharing
+  };
+
+  // Add this function to handle the sharing process
+  const handleShareProject = async () => {
+    if (!project) return;
+
+    setShareLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const payload: ShareFormValues = {
+        shareType,
+        passwordShare: showPasswordField ? sharePassword : null
+      };
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/sharing/${project.projectId}`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data && response.data.linkDocs) {
+        // Use the exact link returned by the API
+        setSharedLink(response.data.linkDocs);
+        message.success('Project shared successfully');
+      } else {
+        message.error('Failed to generate sharing link');
+      }
+    } catch (error) {
+      console.error('Error sharing project:', error);
+      message.error('Failed to share project');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  // Add this function to copy the shared link to clipboard
+  const copySharedLink = () => {
+    navigator.clipboard.writeText(sharedLink)
+      .then(() => {
+        message.success('Link copied to clipboard');
+      })
+      .catch((err) => {
+        console.error('Failed to copy link:', err);
+        message.error('Failed to copy link to clipboard');
+      });
+  };
+
+  // Add this function to handle shared project access
+  const handleSharedProjectAccess = async (projectId: string, shareType: number, password: string | null = null) => {
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/shared/${projectId}`,
+        {
+          passwordShare: password
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      // Process project data similar to fetchProjectDetails
+      if (response.data) {
+        setProject(response.data);
+        if (response.data.dbmlContent) {
+          setCurrentDbmlContent(response.data.dbmlContent);
+          parseDbmlContent(response.data.dbmlContent);
+          calculateStats(response.data.dbmlContent);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error accessing shared project:', error);
+
+      if (error.response?.status === 403) {
+        if (shareType === 3) {
+          // If password protected and access denied, show password modal again
+          message.error('Incorrect password');
+          setPasswordModalVisible(true);
+        } else {
+          // For other types, just show access denied
+          message.error('You do not have permission to access this project');
+          navigate('/');
+        }
+      } else {
+        message.error('Failed to load project');
+        navigate('/');
+      }
+    }
+  };
+
+  // Add this function to handle password submission for shared projects
+  const handlePasswordSubmit = () => {
+    if (passwordInput.trim()) {
+      handleSharedProjectAccess(sharedProjectId, sharedProjectType, passwordInput);
+      setPasswordModalVisible(false);
+    } else {
+      message.warning('Please enter a password');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -1477,7 +1686,8 @@ const DocumentationPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <Button
             type="text"
-            icon={<DownloadOutlined />}
+            icon={<ShareAltOutlined />}
+            onClick={initializeProjectSharing}
             style={{ marginRight: '8px' }}
           >
             Share
@@ -1582,7 +1792,7 @@ const DocumentationPage: React.FC = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <Text style={{ marginRight: '4px', fontSize: '13px' }}>
-                  <Text strong>{project?.creatorName || 'quandev03'}</Text>/<Text strong>{project?.projectName || 'Project 1'}</Text>
+                  <Text strong>{project?.ownerEmail || 'unknown'}</Text>/<Text strong>{project?.projectCode || 'Project'}</Text>
                 </Text>
               </div>
               {renderProjectInfo()}
@@ -1602,6 +1812,134 @@ const DocumentationPage: React.FC = () => {
         previousVersion={previousVersion}
         diffResult={diffResult}
       />
+
+      {/* Share Project Modal */}
+      <Modal
+        title="Share Project"
+        open={shareModalVisible}
+        onCancel={() => setShareModalVisible(false)}
+        footer={null}
+      >
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Share Type:</Text>
+            <Select
+              value={shareType}
+              onChange={handleShareTypeChange}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <Option value={1}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <GlobalOutlined style={{ marginRight: 8 }} />
+                  Public (Anyone with the link can view)
+                </div>
+              </Option>
+              <Option value={2}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <TeamOutlined style={{ marginRight: 8 }} />
+                  Private (Only specific users can view)
+                </div>
+              </Option>
+              <Option value={3}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <LockOutlined style={{ marginRight: 8 }} />
+                  Password Protected
+                </div>
+              </Option>
+            </Select>
+          </div>
+
+          {showPasswordField && (
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>Password:</Text>
+              <Input.Password
+                placeholder="Enter password for protection"
+                value={sharePassword}
+                onChange={(e) => setSharePassword(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+            </div>
+          )}
+
+          {sharedLink ? (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>Share Link:</Text>
+                <Input
+                  value={sharedLink}
+                  readOnly
+                  addonAfter={
+                    <CopyOutlined
+                      onClick={copySharedLink}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  }
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Button onClick={() => setShareModalVisible(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'right' }}>
+              <Button onClick={() => setShareModalVisible(false)} style={{ marginRight: 8 }}>
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleShareProject}
+                loading={shareLoading}
+                disabled={showPasswordField && !sharePassword}
+              >
+                Share
+              </Button>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Password Input Modal for Shared Projects */}
+      <Modal
+        title="Password Required"
+        open={passwordModalVisible}
+        onCancel={() => {
+          setPasswordModalVisible(false);
+          navigate('/');
+        }}
+        footer={[
+          <Button
+            key="back"
+            onClick={() => {
+              setPasswordModalVisible(false);
+              navigate('/');
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={shareLoading}
+            onClick={handlePasswordSubmit}
+          >
+            Submit
+          </Button>
+        ]}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text>This project is password protected. Please enter the password to continue:</Text>
+          <Input.Password
+            placeholder="Enter password"
+            style={{ marginTop: 16 }}
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            onPressEnter={handlePasswordSubmit}
+          />
+        </div>
+      </Modal>
     </Layout>
   );
 };
