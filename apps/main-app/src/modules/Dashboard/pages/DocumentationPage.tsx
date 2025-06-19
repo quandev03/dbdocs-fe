@@ -281,23 +281,26 @@ const DocumentationPage: React.FC = () => {
           setIsSharedProject(true);
           setSharedProjectId(projectId);
           setSharedProjectType(shareType);
-          setLoading(false)
 
           // If password protected, show password modal
           if (shareType === 3) {
             setPasswordModalVisible(true);
           } else {
             // Otherwise, try to access directly
+            setLoading(false)
             handleSharedProjectAccess(projectId, shareType);
           }
-        }else{
-          fetchProjectDetails();
+          console.log("Shared project URL detected:", path, "Share Type:", shareType, "Project ID:", projectId);
         }
+      }else{
+        setLoading(false)
+        console.log("Invalid project URL format:", path);
+        fetchProjectDetails();
       }
       fetchVersions();
       fetchChangelogs();
     }
-  }, [projectId]);
+  }, [projectId, loading]);
 
   // Use static user information for versions' creators
   useEffect(() => {
@@ -342,8 +345,6 @@ const DocumentationPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching project details:', error);
       message.error('Failed to load project details');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1624,14 +1625,6 @@ const DocumentationPage: React.FC = () => {
       message.warning('Please enter a password');
     }
   };
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
 
   // Create options for version selector from fetched versions
   const versionOptions = versions.map(version => ({
