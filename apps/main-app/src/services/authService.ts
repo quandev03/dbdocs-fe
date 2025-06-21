@@ -4,22 +4,6 @@ import { API_CONFIG, AUTH_CONFIG } from '../config';
 let API_BASE_URL = API_CONFIG.BASE_URL;
 console.log("API_CONFIG.BASE_URL:", API_CONFIG.BASE_URL);
 
-// Fallback check for environment variables
-if (typeof window !== 'undefined' && (window as any)._env_) {
-  console.log("Reading from window._env_", (window as any)._env_);
-  if ((window as any)._env_.VITE_API_DOMAIN) {
-    API_BASE_URL = (window as any)._env_.VITE_API_DOMAIN;
-    console.log("Using API_BASE_URL from window._env_:", API_BASE_URL);
-  }
-}
-
-// Final fallback - verify we're not using localhost if we're supposed to use a different domain
-if (API_BASE_URL === 'http://localhost:8080' && process.env.NODE_ENV === 'production') {
-  // In production, try to use a safer default
-  console.warn("Warning: Using localhost in production! Attempting to use window location origin instead.");
-  API_BASE_URL = window.location.origin;
-}
-
 console.log("Final API_BASE_URL:", API_BASE_URL);
 
 const { TOKEN, TOKEN_TYPE, EXPIRES_IN, EXPIRY_TIME, USER_INFO } = AUTH_CONFIG.STORAGE_KEYS;
@@ -138,8 +122,8 @@ export const authService = {
 
       // Determine redirect URL with proper origin
       // Use API_BASE_URL from environment variable
-      console.log(`API_BASE_URL for OAuth: ${API_BASE_URL}`);
-      const redirectUrl = `${API_BASE_URL}${url}`;
+      console.log(`API_BASE_URL for OAuth: ${API_CONFIG.BASE_URL}`);
+      const redirectUrl = `${API_CONFIG.BASE_URL}${url}`;
       console.log('Opening OAuth popup to:', redirectUrl);
 
       const popup = window.open(
@@ -233,7 +217,7 @@ export const authService = {
 
     try {
       const token = authService.getToken();
-      const response = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/users/me`, {
         headers: {
           'Authorization': `${token?.tokenType} ${token?.accessToken}`
         }

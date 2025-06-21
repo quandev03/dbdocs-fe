@@ -1,5 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_DOMAIN
-
+import { API_CONFIG, AUTH_CONFIG } from '@main-app/config';
+const API_BASE_URL =  API_CONFIG.BASE_URL;
 export const authService = {
   // Check if token exists in localStorage
   hasToken: (): boolean => {

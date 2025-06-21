@@ -19,7 +19,7 @@ const getEnvVar = (name: string): string => {
 
 // API configuration
 export const API_CONFIG = {
-  BASE_URL: getEnvVar('VITE_API_DOMAIN')|| "http://localhost:8081",
+  BASE_URL: getEnvVar('VITE_API_DOMAIN'),
   TIMEOUT: 60000, // 60 seconds
 };
 
