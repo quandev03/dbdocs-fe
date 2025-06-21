@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { authService } from '../../../services/authService';
 import {
   Layout,
   Tabs,
@@ -19,7 +20,8 @@ import {
   Table,
   Divider,
   Input,
-  Select
+  Select,
+  Modal
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -40,16 +42,31 @@ import {
   SearchOutlined,
   FileOutlined,
   ApartmentOutlined,
-  UploadOutlined
+  UploadOutlined,
+  ZoomOutOutlined,
+  ZoomInOutlined,
+  FullscreenOutlined,
+  DiffOutlined,
+  CodeOutlined,
+  ShareAltOutlined,
+  LockOutlined,
+  GlobalOutlined,
+  LinkOutlined,
+  TeamOutlined,
+  CopyOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { apiService } from '../../../services/apiService';
-import { userService } from '../../../services/userService';
 import { DbmlEditor } from '../components/DbmlEditor';
+import MonacoEditor from '@monaco-editor/react';
+import * as diff from 'diff';
+import CodeCompareModal from './CodeCompareModal';
+import axios from 'axios';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+const { Option } = Select;
 
 // Custom icons
 const SortDescendingOutlined: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
@@ -61,15 +78,22 @@ const CaretDownOutlined: React.FC<{ style?: React.CSSProperties }> = ({ style })
 
 interface ProjectDetails {
   projectId: string;
-  projectName: string;
   projectCode: string;
   description: string;
-  creatorName: string;
-  creatorAvatarUrl: string;
-  createdDate: number;
-  lastUpdatedDate: number;
-  dbmlContent: string;
+  passwordShare?: string | null;
+  visibility?: number;
+  ownerEmail?: string;
+  ownerAvatarUrl?: string;
   ownerId?: string;
+  createdDate: number;
+  createdBy: string;
+  modifiedDate: number;
+  modifiedBy: string;
+  // Fields we need for UI but might not be in the API response
+  projectName?: string;
+  creatorName?: string;
+  creatorAvatarUrl?: string;
+  dbmlContent?: string;
 }
 
 interface VersionInfo {
@@ -152,6 +176,11 @@ interface SchemaStructure {
   isExpanded?: boolean;
 }
 
+interface ShareFormValues {
+  shareType: number;
+  passwordShare: string | null;
+}
+
 const DocumentationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('wiki');
   const [project, setProject] = useState<ProjectDetails | null>(null);
@@ -168,81 +197,188 @@ const DocumentationPage: React.FC = () => {
   const [filteredSchemaStructure, setFilteredSchemaStructure] = useState<SchemaStructure[]>([]);
   const [creatorInfo, setCreatorInfo] = useState<{ fullName: string; avatarUrl: string } | null>(null);
   const [versionCreators, setVersionCreators] = useState<Record<string, { fullName: string; avatarUrl: string }>>({});
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [isEditingDescription, setIsEditingDescription] = useState<boolean>(false);
+  const [editedDescription, setEditedDescription] = useState<string>('');
+  const [isCompareModalVisible, setIsCompareModalVisible] = useState<boolean>(false);
+  const [selectedVersionForCompare, setSelectedVersionForCompare] = useState<VersionInfo | null>(null);
+  const [previousVersion, setPreviousVersion] = useState<VersionInfo | null>(null);
+  const [diffResult, setDiffResult] = useState<string>('');
+  const [shareModalVisible, setShareModalVisible] = useState<boolean>(false);
+  const [shareLoading, setShareLoading] = useState<boolean>(false);
+  const [shareType, setShareType] = useState<number>(1); // Default to public
+  const [sharePassword, setSharePassword] = useState<string>('');
+  const [sharedLink, setSharedLink] = useState<string>('');
+  const [showPasswordField, setShowPasswordField] = useState<boolean>(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [isSharedProject, setIsSharedProject] = useState<boolean>(false);
+  const [sharedProjectId, setSharedProjectId] = useState<string>('');
+  const [sharedProjectType, setSharedProjectType] = useState<number>(0);
+  const [accessCall, setAccessCall] = useState<boolean>(false);
 
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
+  // Reference to the DbmlEditor component
+  const dbmlEditorRef = useRef<any>(null);
+  useEffect(() => {
+    // Biến cờ để kiểm tra xem component có còn được mount hay không
+    let isMounted = true;
+
+    // Định nghĩa một hàm async riêng bên trong để lấy dữ liệu
+    const fetchCurrentUser = async () => {
+      try {
+        console.log("get data user");
+        const currentUser: {
+          email: string;
+          fullName: string;
+          avatarUrl: string;
+        } | null = await authService.getCurrentUser();
+
+        console.log("currentUser", currentUser);
+
+        // Chỉ cập nhật state nếu component vẫn còn được mount
+        if (isMounted) {
+          setCreatorInfo({
+            fullName: currentUser?.fullName || currentUser?.email || 'Unknown User',
+            avatarUrl: currentUser?.avatarUrl || '',
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch current user:", error);
+        // Bạn có thể set một state lỗi ở đây nếu cần
+        if (isMounted) {
+          setCreatorInfo({
+            fullName: 'Unknown User',
+            avatarUrl: '',
+          });
+        }
+      }
+    };
+
+    fetchCurrentUser();
+
+    // Đây là hàm cleanup, nó sẽ chạy khi component unmount
+    // Ta sẽ set cờ isMounted thành false để ngăn việc cập nhật state trên một component đã unmount
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (projectId) {
-      fetchProjectDetails();
+      const path = window.location.pathname;
+
+      // Check if it's a shared project URL format
+      if (path.startsWith('/project/')) {
+        const parts = path.split('/');
+        // Need at least 4 parts for the format /project/:shareType/:projectId
+        if (parts.length >= 4) {
+          const shareType = parseInt(parts[2], 10);
+          const projectId = parts[3];
+
+          setIsSharedProject(true);
+          setSharedProjectId(projectId);
+          setSharedProjectType(shareType);
+
+          // If password protected, show password modal
+          if (shareType === 3) {
+            setPasswordModalVisible(true);
+          } else {
+            // Otherwise, try to access directly
+            setLoading(false)
+            handleSharedProjectAccess(projectId, shareType);
+          }
+          console.log("Shared project URL detected:", path, "Share Type:", shareType, "Project ID:", projectId);
+        }
+      }else{
+        setLoading(false)
+        console.log("Invalid project URL format:", path);
+        fetchProjectDetails();
+      }
       fetchVersions();
       fetchChangelogs();
     }
-  }, [projectId]);
+  }, [projectId, loading]);
 
-  // Fetch user information for versions' creators
+  // Use static user information for versions' creators
   useEffect(() => {
     if (versions.length > 0) {
-      const fetchVersionCreators = async () => {
-        const creatorsMap: Record<string, { fullName: string; avatarUrl: string }> = {};
+      const creatorsMap: Record<string, { fullName: string; avatarUrl: string }> = {};
 
-        for (const version of versions) {
-          const userId = version.createdBy || version.changeLog?.createdBy;
-          if (userId && !creatorsMap[userId]) {
-            try {
-              const userInfo = await userService.getUserById(userId);
-              if (userInfo) {
-                creatorsMap[userId] = {
-                  fullName: userInfo.fullName,
-                  avatarUrl: userInfo.avatarUrl
-                };
-              }
-            } catch (error) {
-              console.error(`Error fetching user info for user ${userId}:`, error);
-            }
-          }
+      for (const version of versions) {
+        const userId = version.createdBy || version.changeLog?.createdBy;
+        if (userId && !creatorsMap[userId]) {
+          // Use the creator information from the version itself
+          creatorsMap[userId] = {
+            fullName: version.changeLog?.creatorName || 'Unknown User',
+            avatarUrl: version.changeLog?.creatorAvatarUrl || ''
+          };
         }
+      }
 
-        setVersionCreators(creatorsMap);
-      };
-
-      fetchVersionCreators();
+      setVersionCreators(creatorsMap);
     }
   }, [versions]);
 
   const fetchProjectDetails = async () => {
     try {
+      // call api with projectId
       const response = await apiService.get<ProjectDetails>(`/api/v1/projects/${projectId}`);
-      setProject(response);
 
-      // Get owner information if ownerId exists
-      if (response.ownerId) {
-        try {
-          // The enhanced userService will handle redirects and system users automatically
-          const ownerInfo = await userService.getUserById(response.ownerId);
-          if (ownerInfo) {
-            setCreatorInfo({ fullName: ownerInfo.fullName, avatarUrl: ownerInfo.avatarUrl });
-          }
-        } catch (error) {
-          console.error('Error fetching owner info:', error);
-        }
-      }
+      // Create a normalized project object that works with our UI
+      const normalizedProject = {
+        ...response,
+        projectName: response.projectName || response.projectCode || 'Unnamed Project',
+        creatorName: response.creatorName || response.ownerEmail || 'Unknown User',
+        creatorAvatarUrl: response.creatorAvatarUrl || response.ownerAvatarUrl || '',
+        dbmlContent: response.dbmlContent || ''
+      };
+
+      setProject(normalizedProject);
 
       // Calculate stats from DBML content
-      if (response.dbmlContent) {
-        calculateStats(response.dbmlContent);
+      if (normalizedProject.dbmlContent) {
+        calculateStats(normalizedProject.dbmlContent);
       }
     } catch (error) {
       console.error('Error fetching project details:', error);
       message.error('Failed to load project details');
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchVersions = async () => {
     try {
       const response = await apiService.get<VersionInfo[]>(`/api/v1/versions/project/${projectId}`);
+
+      // Log the first version's createdDate to check its format
+      if (response.length > 0) {
+        console.log('Version timestamp type:', typeof response[0].createdDate);
+        console.log('Version timestamp value:', response[0].createdDate);
+
+        // Check if we need to manually convert string dates to numbers
+        response.forEach(version => {
+          if (typeof version.createdDate === 'string') {
+            try {
+              // Try to parse the date string directly
+              const parsedDate = new Date(version.createdDate);
+
+              // If we got a valid date far from epoch, keep it as string
+              // Otherwise, try to parse it as a number
+              if (isNaN(parsedDate.getTime()) || parsedDate.getFullYear() < 1975) {
+                const numTimestamp = parseInt(version.createdDate, 10);
+                if (!isNaN(numTimestamp)) {
+                  console.log(`Converting timestamp ${version.createdDate} to number: ${numTimestamp}`);
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing date:', version.createdDate, e);
+            }
+          }
+        });
+      }
+
       setVersions(response);
 
       // Set the latest version as selected
@@ -288,10 +424,79 @@ const DocumentationPage: React.FC = () => {
   };
 
   const formatDate = (timestamp: number | string) => {
+    if (!timestamp) return 'N/A';
+
+    // Handle timestamp whether it's a number or string
+    let date: Date;
     if (typeof timestamp === 'string') {
-      return moment(timestamp).format('MMM DD, YYYY HH:mm');
+      // Try to parse as ISO string first
+      date = new Date(timestamp);
+
+      // If the date is invalid or near epoch (before 1975), try parsing as a number
+      if (isNaN(date.getTime()) || date.getFullYear() < 1975) {
+        // Try parsing as a number
+        const numTimestamp = parseInt(timestamp, 10);
+        if (!isNaN(numTimestamp)) {
+          // Check if we need to multiply by 1000 (seconds to milliseconds)
+          if (numTimestamp < 10000000000) { // Less than 11 digits means it's in seconds
+            date = new Date(numTimestamp * 1000);
+          } else {
+            date = new Date(numTimestamp);
+          }
+        }
+      }
+    } else {
+      // Handle numeric timestamp
+      // Check if we need to multiply by 1000 (seconds to milliseconds)
+      if (timestamp < 10000000000) { // Less than 11 digits means it's in seconds
+        date = new Date(timestamp * 1000);
+      } else {
+        date = new Date(timestamp);
+      }
     }
-    return moment(timestamp).format('MMM DD, YYYY HH:mm');
+
+    // If date is still invalid, return N/A
+    if (isNaN(date.getTime())) {
+      console.error('Invalid timestamp:', timestamp);
+      return 'N/A';
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    const diffMonth = Math.floor(diffDay / 30);
+
+    // Dưới 1 phút thì hiển thị số giây
+    if (diffMin < 1) {
+      return `${diffSec} giây trước`;
+    }
+
+    // Dưới 1 giờ thì hiển thị số phút
+    if (diffHour < 1) {
+      return `${diffMin} phút trước`;
+    }
+
+    // Dưới 1 ngày thì hiển thị số giờ
+    if (diffDay < 1) {
+      return `${diffHour} giờ trước`;
+    }
+
+    // Dưới 1 tháng thì hiển thị số ngày
+    if (diffMonth < 1) {
+      return `${diffDay} ngày trước`;
+    }
+
+    // Trên 1 tháng thì hiển thị theo format dd/MM/yyyy hh:mm
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const handleBack = () => {
@@ -382,69 +587,9 @@ const DocumentationPage: React.FC = () => {
       });
     }
 
-    // If no schemas were found, use the mock data
+    // If no schemas were found, return an empty array instead of mock data
     if (schemas.length === 0) {
-      return [{
-        name: 'public',
-        tables: [
-          {
-            name: 'project',
-            columns: [
-              { name: 'id', type: 'uuid', note: 'Primary key for project' },
-              { name: 'name', type: 'varchar', note: 'Project name' }
-            ],
-            isExpanded: false,
-            note: 'Projects information'
-          },
-          {
-            name: 'ChangeLog',
-            columns: [
-              { name: 'change_log_id', type: 'string', note: 'Primary key' },
-              { name: 'project_id', type: 'string', note: 'Reference to project' },
-              { name: 'content', type: 'string', note: 'Change content' },
-              { name: 'code_change_log', type: 'string', note: 'Code changes' },
-              { name: 'created_date', type: 'timestamp', note: 'Creation timestamp' },
-              { name: 'created_by', type: 'string', note: 'Creator ID' },
-              { name: 'modified_date', type: 'timestamp', note: 'Last modified timestamp' },
-              { name: 'modified_by', type: 'string', note: 'Modifier ID' }
-            ],
-            isExpanded: true,
-            note: 'Tracks changes to projects'
-          },
-          {
-            name: 'Version',
-            columns: [
-              { name: 'id', type: 'uuid', note: 'Primary key' },
-              { name: 'project_id', type: 'uuid', note: 'Reference to project' },
-              { name: 'version', type: 'integer', note: 'Version number' }
-            ],
-            isExpanded: false,
-            note: 'Project versions'
-          },
-          {
-            name: 'users',
-            columns: [
-              { name: 'id', type: 'uuid', note: 'Primary key' },
-              { name: 'username', type: 'varchar', note: 'User login name' },
-              { name: 'email', type: 'varchar', note: 'User email address' }
-            ],
-            isExpanded: false,
-            note: 'User information'
-          },
-          {
-            name: 'project_access',
-            columns: [
-              { name: 'id', type: 'uuid', note: 'Primary key' },
-              { name: 'project_id', type: 'uuid', note: 'Reference to project' },
-              { name: 'user_id', type: 'uuid', note: 'Reference to user' },
-              { name: 'access_level', type: 'varchar', note: 'Level of access' }
-            ],
-            isExpanded: false,
-            note: 'Project access permissions'
-          }
-        ],
-        isExpanded: true
-      }];
+      return [];
     }
 
     return schemas;
@@ -534,7 +679,7 @@ const DocumentationPage: React.FC = () => {
         border: '1px solid #e8e8e8',
         marginBottom: '24px'
       }}>
-        <Title level={2} style={{ fontSize: '28px', marginBottom: '24px' }}>{project.projectName || 'Project 1'}</Title>
+        <Title level={2} style={{ fontSize: '28px', marginBottom: '24px' }}>{project.projectName}</Title>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '24px' }}>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
@@ -542,47 +687,57 @@ const DocumentationPage: React.FC = () => {
             <Space>
               <Avatar
                 size="small"
-                src={creatorInfo?.avatarUrl}
-                icon={!creatorInfo?.avatarUrl ? <UserOutlined /> : undefined}
+                src={project.ownerAvatarUrl}
+                icon={!project.ownerAvatarUrl ? <UserOutlined /> : undefined}
                 style={{ marginRight: '8px' }}
               />
-              <Text>{creatorInfo?.fullName || project.creatorName || 'quandev03'}</Text>
+              <Text>{project.ownerEmail}</Text>
             </Space>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
             <Text strong style={{ width: '120px' }}>Date created:</Text>
-            <Text>{project.createdDate ? formatDate(project.createdDate) : 'April 16th 2025'}</Text>
+            <Text>{project.createdDate ? formatDate(project.createdDate) : 'N/A'}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
             <Text strong style={{ width: '120px' }}>Project code:</Text>
-            <Text>{project.projectCode || 'PRJ001'}</Text>
+            <Text>{project.projectCode}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
             <Text strong style={{ width: '120px' }}>Last updated:</Text>
-            <Text>{project.lastUpdatedDate ? formatDate(project.lastUpdatedDate) : '18 hours ago'}</Text>
-          </div>
-          <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Database type:</Text>
-            <Text>PostgreSQL</Text>
+            <Text>{project.modifiedDate ? formatDate(project.modifiedDate) : 'N/A'}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
             <Text strong style={{ width: '120px' }}>Version:</Text>
-            <Text>{selectedVersion || '4'} (Latest)</Text>
+            <Text>{selectedVersion || (versions.length > 0 ? versions[0].codeVersion.toString() : 'N/A')} {versions.length > 0 ? '(Latest)' : ''}</Text>
           </div>
           <div style={{ width: '100%', display: 'flex', marginBottom: '16px' }}>
             <Text strong style={{ width: '120px' }}>Description:</Text>
-            <Text>{project.description || 'This project contains database documentation for the application.'}</Text>
+            {isEditingDescription ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <Input.TextArea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  autoSize={{ minRows: 2, maxRows: 6 }}
+                  style={{ marginBottom: '8px' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <Button size="small" onClick={toggleDescriptionEdit}>Cancel</Button>
+                  <Button size="small" type="primary" onClick={saveDescription}>Save</Button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
+                <Text style={{ flex: 1 }}>{project.description || 'No description provided'}</Text>
+                <Button
+                  type="text"
+                  icon={<EditOutlined />}
+                  size="small"
+                  onClick={toggleDescriptionEdit}
+                  style={{ marginLeft: '8px' }}
+                />
+              </div>
+            )}
           </div>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={handleEdit}
-          >
-            Edit Project
-          </Button>
         </div>
       </div>
     );
@@ -592,64 +747,152 @@ const DocumentationPage: React.FC = () => {
   const renderWikiTab = () => {
     if (!project) return null;
 
-    const mockRecentActivities: RecentActivityItem[] = [
-      { id: 'mock-1', userId: 'mock-user-1', codeChangeLog: '4', createdDate: Date.now() - 19*60*60*1000, creatorAvatarUrl: '' },
-      { id: 'mock-2', userId: 'mock-user-2', codeChangeLog: '3', createdDate: Date.now() - 19*60*60*1000, creatorAvatarUrl: '' },
-    ];
-
     return (
       <div className="wiki-container">
         <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
-          <Col span={12}>
+          <Col span={24}>
             <Text strong style={{ fontSize: '16px', display: 'block', marginBottom: '12px' }}>Recent activities</Text>
             <div style={{ border: '1px solid #e8e8e8', borderRadius: '4px' }}>
-              {(versions.length > 0 ? versions.slice(0, 2).map(v => ({
+              {(versions.length > 0 ? versions.slice(0, 3).map(v => ({
                 id: v.id,
                 userId: v.createdBy || v.changeLog?.createdBy,
-                codeChangeLog: v.codeVersion.toString(),
+                codeVersion: v.codeVersion,
                 createdDate: v.createdDate,
                 creatorAvatarUrl: v.changeLog?.creatorAvatarUrl || '',
                 creatorName: v.changeLog?.creatorName || '',
                 diffChange: v.diffChange
-              })) : mockRecentActivities).map((item, index) => {
+              })) : []).map((item, index) => {
                 const userInfo = item.userId ? versionCreators[item.userId] : null;
+
+                // Log the createdDate to check its value
+                console.log(`Activity ${index + 1} createdDate:`, item.createdDate, typeof item.createdDate);
+
+                // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators
+                const avatarUrl = item.creatorAvatarUrl || (userInfo?.avatarUrl || '');
+
+                // Phân tích thông tin thay đổi từ diffChange
+                const changes = parseDiffChange(item.diffChange);
+
+                // Tạo các tag hiển thị dựa trên thông tin thay đổi thực tế
+                const tagElements = [];
+
+                if (changes) {
+                  // Thêm tag cho bảng được thêm (màu xanh)
+                  if (changes.addedTablesCount > 0) {
+                    tagElements.push(
+                      <Tag key="added-tables" color="success" style={{ margin: 0 }}>
+                        <TableOutlined style={{ marginRight: '4px' }} />+ {changes.addedTablesCount}
+                      </Tag>
+                    );
+                  }
+
+                  // Thêm tag cho bảng được sửa (màu vàng)
+                  if (changes.modifiedTablesCount > 0) {
+                    tagElements.push(
+                      <Tag key="modified-tables" color="gold" style={{ margin: 0 }}>
+                        <TableOutlined style={{ marginRight: '4px' }} />* {changes.modifiedTablesCount}
+                      </Tag>
+                    );
+                  }
+
+                  // Thêm tag cho bảng bị xóa (màu đỏ)
+                  if (changes.removedTablesCount > 0) {
+                    tagElements.push(
+                      <Tag key="removed-tables" color="error" style={{ margin: 0 }}>
+                        <TableOutlined style={{ marginRight: '4px' }} />− {changes.removedTablesCount}
+                      </Tag>
+                    );
+                  }
+
+                  // Thêm tag cho cột được thêm (màu xanh)
+                  if (changes.addedColumns > 0) {
+                    tagElements.push(
+                      <Tag key="added-columns" color="success" style={{ margin: 0 }}>
+                        <FieldNumberOutlined style={{ marginRight: '4px' }} />+ {changes.addedColumns}
+                      </Tag>
+                    );
+                  }
+
+                  // Thêm tag cho cột được sửa (màu vàng)
+                  if (changes.modifiedColumns > 0) {
+                    tagElements.push(
+                      <Tag key="modified-columns" color="gold" style={{ margin: 0 }}>
+                        <FieldNumberOutlined style={{ marginRight: '4px' }} />* {changes.modifiedColumns}
+                      </Tag>
+                    );
+                  }
+
+                  // Thêm tag cho cột bị xóa (màu đỏ)
+                  if (changes.removedColumns > 0) {
+                    tagElements.push(
+                      <Tag key="removed-columns" color="error" style={{ margin: 0 }}>
+                        <FieldNumberOutlined style={{ marginRight: '4px' }} />− {changes.removedColumns}
+                      </Tag>
+                    );
+                  }
+
+                  // Nếu không có thay đổi cụ thể nào được phát hiện nhưng có totalChanges
+                  if (tagElements.length === 0 && changes.totalChanges > 0) {
+                    tagElements.push(
+                      <Tag key="total-changes" style={{ margin: 0, backgroundColor: '#f8f9fa', border: '1px solid #dfe1e5', color: '#5f6368' }}>
+                        <EditOutlined style={{ marginRight: '4px' }} />{changes.totalChanges}
+                      </Tag>
+                    );
+                  }
+                }
 
                 return (
                   <div key={index} style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderBottom: index === 0 ? '1px solid #e8e8e8' : 'none'
+                    padding: '24px 16px',
+                    borderBottom: index < 2 ? '1px solid #e8e8e8' : 'none',
+                    alignItems: 'center'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <Text style={{ marginRight: '16px' }}>
-                        {item.createdDate ? formatDate(item.createdDate) : '19 hours ago'}
-                      </Text>
-                      <Text strong>Version {item.codeChangeLog}</Text>
-                      {index === 0 && (
-                        <Tag color="red" style={{ marginLeft: '8px', fontSize: '11px' }}>NEW</Tag>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: '#f5f5f5',
+                        borderRadius: '4px',
+                        marginRight: '16px'
+                      }}>
+                        <Text strong>{index + 1}</Text>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Text style={{ color: '#4285f4', marginRight: '8px', fontWeight: 500, fontSize: '14px' }}>
+                            {formatDate(item.createdDate)}
+                          </Text>
+                          <Text strong style={{ fontSize: '14px' }}>Version {item.codeVersion}</Text>
+                          <Text style={{ color: '#999', marginLeft: '8px', fontSize: '14px' }}>#{item.codeVersion}</Text>
+                        </div>
+                      </div>
                     </div>
-                    <Avatar
-                      src={userInfo?.avatarUrl || item.creatorAvatarUrl}
-                      icon={!(userInfo?.avatarUrl || item.creatorAvatarUrl) ? <UserOutlined /> : undefined}
-                    />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {tagElements}
+                      </div>
+                      <Avatar
+                        size="large"
+                        src={avatarUrl}
+                        icon={!avatarUrl ? <UserOutlined /> : undefined}
+                        style={{ backgroundColor: '#f5f5f5' }}
+                      />
+                    </div>
                   </div>
                 );
               })}
-              <div style={{ padding: '8px 0', textAlign: 'center', borderTop: '1px solid #e8e8e8' }}>
-                <Button type="link" onClick={() => setActiveTab('changelog')} style={{ fontSize: '14px' }}>view more</Button>
+              <div style={{ padding: '12px 0', textAlign: 'center', borderTop: '1px solid #e8e8e8' }}>
+                <Button type="link" onClick={() => setActiveTab('changelog')} style={{ fontSize: '14px', color: '#4285f4' }}>
+                  view more
+                </Button>
               </div>
-            </div>
-          </Col>
-          <Col span={12}>
-            <Text strong style={{ fontSize: '16px', display: 'block', marginBottom: '12px' }}>Schema note</Text>
-            <div style={{
-              border: '1px solid #e8e8e8',
-              borderRadius: '4px',
-              padding: '16px',
-              height: '152px'
-            }}>
             </div>
           </Col>
         </Row>
@@ -722,11 +965,11 @@ const DocumentationPage: React.FC = () => {
                     <TableOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                     {table.name}
                   </Col>
-                  <Col span={8}>{table.note || `Table for ${table.name} data`}</Col>
+                  <Col span={8}>{table.note || ''}</Col>
                   <Col span={8} style={{ display: 'flex', alignItems: 'center' }}>
                     <ClockCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
                     {latestVersion?.createdDate ? formatDate(latestVersion.createdDate) :
-                     (project?.lastUpdatedDate ? formatDate(project.lastUpdatedDate) : '19 hours ago')}
+                     (project?.modifiedDate ? formatDate(project.modifiedDate) : 'N/A')}
                   </Col>
                 </Row>
               );
@@ -737,40 +980,96 @@ const DocumentationPage: React.FC = () => {
     );
   };
 
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (dbmlEditorRef.current && dbmlEditorRef.current.zoomIn) {
+      dbmlEditorRef.current.zoomIn();
+      setZoomLevel(prev => Math.min(prev + 20, 200));
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (dbmlEditorRef.current && dbmlEditorRef.current.zoomOut) {
+      dbmlEditorRef.current.zoomOut();
+      setZoomLevel(prev => Math.max(prev - 20, 40));
+    }
+  };
+
+  const handleFitToView = () => {
+    if (dbmlEditorRef.current && dbmlEditorRef.current.fitToView) {
+      dbmlEditorRef.current.fitToView();
+      setZoomLevel(100);
+    }
+  };
+
   // Diagram tab content
   const renderDiagramTab = () => {
     if (!project) return null;
 
-    const handlePublishToDbdocs = () => {
-      // Xử lý khi người dùng nhấn nút Publish to Dbdocs
-      message.success('Publishing to Dbdocs...');
-      // Thêm logic publish thực tế ở đây
-    };
-
     return (
-      <div style={{ padding: '0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      <div style={{ height: 'calc(100% - 16px)', width: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', justifyContent: 'space-between' }}>
           <Text style={{ marginRight: '4px', fontSize: '13px' }}>
-            {project?.creatorName || 'quandev03'}/{project?.projectName || 'Project 1'} • <Text strong style={{ fontSize: '13px' }}>{project?.projectCode || 'PRJ001'}</Text>
+            <Text strong>{project?.creatorName}</Text>/<Text strong>{project?.projectName}</Text>
           </Text>
 
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={handlePublishToDbdocs}
-          >
-            Publish to Dbdocs
-          </Button>
-        </div>
-
-        <div style={{ padding: '20px', border: '1px solid #e8e8e8', borderRadius: '4px', minHeight: '400px' }}>
-          {/* Nội dung diagram hiện tại */}
-          <div style={{ textAlign: 'center', color: '#999', marginTop: '160px' }}>
-            <FileTextOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
-            <div>Database diagram will be displayed here</div>
+          {/* Zoom controls */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Button
+              type="text"
+              icon={<ZoomOutOutlined />}
+              size="small"
+              title="Zoom out"
+              onClick={handleZoomOut}
+            />
+            <Text style={{ margin: '0 4px' }}>{zoomLevel}%</Text>
+            <Button
+              type="text"
+              icon={<ZoomInOutlined />}
+              size="small"
+              title="Zoom in"
+              onClick={handleZoomIn}
+            />
+            <Button
+              type="text"
+              icon={<FullscreenOutlined />}
+              size="small"
+              title="Fit to view"
+              onClick={handleFitToView}
+            />
           </div>
         </div>
+
+        <div style={{
+          flex: 1,
+          border: '1px solid #e8e8e8',
+          borderRadius: '4px',
+          height: 'calc(100vh - 150px)',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <DbmlEditor
+            ref={dbmlEditorRef}
+            readOnly={true}
+            initialValue={currentDbmlContent}
+            projectId={projectId || ''}
+            showDiagramOnly={true}
+          />
+        </div>
       </div>
+    );
+  };
+
+  // Add global CSS for hover effect
+  const getGlobalStyle = () => {
+    return (
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .version-item:hover .view-code-change-btn {
+            display: inline-flex !important;
+          }
+        `
+      }} />
     );
   };
 
@@ -778,112 +1077,178 @@ const DocumentationPage: React.FC = () => {
   const renderChangelogTab = () => {
     if (changelogLoading) return <Spin />;
 
-    // Mock data with proper typing for when no versions are available
-    const mockVersions: VersionInfo[] = [
-      {
-        id: 'mock-1',
-        projectId: projectId || '',
-        codeVersion: 4,
-        changeLogId: 'cl-1',
-        diffChange: '',
-        changeLog: {
-          changeLogId: 'cl-1',
-          codeChangeLog: '4',
-          content: 'Added new tables',
-          createdDate: new Date().toISOString(),
-          createdBy: 'user-1',
-          creatorName: 'quandev03',
-          creatorAvatarUrl: ''
-        },
-        content: '',
-        createdDate: new Date(Date.now() - 19*60*60*1000).toISOString(),
-        createdBy: 'user-1'
-      },
-      {
-        id: 'mock-2',
-        projectId: projectId || '',
-        codeVersion: 3,
-        changeLogId: 'cl-2',
-        diffChange: '',
-        changeLog: {
-          changeLogId: 'cl-2',
-          codeChangeLog: '3',
-          content: 'Updated schema',
-          createdDate: new Date().toISOString(),
-          createdBy: 'user-1',
-          creatorName: 'quandev03',
-          creatorAvatarUrl: ''
-        },
-        content: '',
-        createdDate: new Date(Date.now() - 2*24*60*60*1000).toISOString(),
-        createdBy: 'user-1'
-      },
-      {
-        id: 'mock-3',
-        projectId: projectId || '',
-        codeVersion: 2,
-        changeLogId: 'cl-3',
-        diffChange: '',
-        changeLog: {
-          changeLogId: 'cl-3',
-          codeChangeLog: '2',
-          content: 'Initial schema setup',
-          createdDate: new Date().toISOString(),
-          createdBy: 'user-1',
-          creatorName: 'quandev03',
-          creatorAvatarUrl: ''
-        },
-        content: '',
-        createdDate: new Date(Date.now() - 5*24*60*60*1000).toISOString(),
-        createdBy: 'user-1'
-      }
-    ];
+    // Use real versions or empty array
+    const emptyVersions: VersionInfo[] = [];
 
     return (
       <div style={{ padding: '0' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
           <Text style={{ marginRight: '4px', fontSize: '13px' }}>
-            {project?.creatorName || 'quandev03'}/{project?.projectName || 'Project 1'} • <Text strong style={{ fontSize: '13px' }}>{project?.projectCode || 'PRJ001'}</Text>
+            <Text strong>{project?.creatorName}</Text>/<Text strong>{project?.projectName}</Text>
           </Text>
         </div>
 
         <Card title="Version History" style={{ marginBottom: '24px' }}>
           <List
             itemLayout="horizontal"
-            dataSource={versions}
+            dataSource={versions.length > 0 ? versions : emptyVersions}
             renderItem={(item, index) => {
               const userId = item.createdBy || item.changeLog?.createdBy;
               const userInfo = userId ? versionCreators[userId] : null;
 
+              // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators
+              const avatarUrl = item.changeLog?.creatorAvatarUrl || (userInfo?.avatarUrl || '');
+
+              // Phân tích thông tin thay đổi từ diffChange
+              const changes = parseDiffChange(item.diffChange);
+
+              // Tạo các tag hiển thị dựa trên thông tin thay đổi thực tế
+              const tagElements = [];
+
+              if (changes) {
+                // Thêm tag cho bảng được thêm (màu xanh)
+                if (changes.addedTablesCount > 0) {
+                  tagElements.push(
+                    <Tag key="added-tables" color="success" style={{ margin: 0 }}>
+                      <TableOutlined style={{ marginRight: '4px' }} />+ {changes.addedTablesCount}
+                    </Tag>
+                  );
+                }
+
+                // Thêm tag cho bảng được sửa (màu vàng)
+                if (changes.modifiedTablesCount > 0) {
+                  tagElements.push(
+                    <Tag key="modified-tables" color="gold" style={{ margin: 0 }}>
+                      <TableOutlined style={{ marginRight: '4px' }} />* {changes.modifiedTablesCount}
+                    </Tag>
+                  );
+                }
+
+                // Thêm tag cho bảng bị xóa (màu đỏ)
+                if (changes.removedTablesCount > 0) {
+                  tagElements.push(
+                    <Tag key="removed-tables" color="error" style={{ margin: 0 }}>
+                      <TableOutlined style={{ marginRight: '4px' }} />− {changes.removedTablesCount}
+                    </Tag>
+                  );
+                }
+
+                // Thêm tag cho cột được thêm (màu xanh)
+                if (changes.addedColumns > 0) {
+                  tagElements.push(
+                    <Tag key="added-columns" color="success" style={{ margin: 0 }}>
+                      <FieldNumberOutlined style={{ marginRight: '4px' }} />+ {changes.addedColumns}
+                    </Tag>
+                  );
+                }
+
+                // Thêm tag cho cột được sửa (màu vàng)
+                if (changes.modifiedColumns > 0) {
+                  tagElements.push(
+                    <Tag key="modified-columns" color="gold" style={{ margin: 0 }}>
+                      <FieldNumberOutlined style={{ marginRight: '4px' }} />* {changes.modifiedColumns}
+                    </Tag>
+                  );
+                }
+
+                // Thêm tag cho cột bị xóa (màu đỏ)
+                if (changes.removedColumns > 0) {
+                  tagElements.push(
+                    <Tag key="removed-columns" color="error" style={{ margin: 0 }}>
+                      <FieldNumberOutlined style={{ marginRight: '4px' }} />− {changes.removedColumns}
+                    </Tag>
+                  );
+                }
+
+                // Nếu không có thay đổi cụ thể nào được phát hiện nhưng có totalChanges
+                if (tagElements.length === 0 && changes.totalChanges > 0) {
+                  tagElements.push(
+                    <Tag key="total-changes" style={{ margin: 0, backgroundColor: '#f8f9fa', border: '1px solid #dfe1e5', color: '#5f6368' }}>
+                      <EditOutlined style={{ marginRight: '4px' }} />{changes.totalChanges}
+                    </Tag>
+                  );
+                }
+              }
+
               return (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={
-                      <Avatar
-                        src={userInfo?.avatarUrl || item.changeLog?.creatorAvatarUrl}
-                        icon={!(userInfo?.avatarUrl || item.changeLog?.creatorAvatarUrl) ? <UserOutlined /> : undefined}
-                      />
-                    }
-                    title={
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <Text strong>Version {item.codeVersion}</Text>
-                        {index === 0 && <Tag color="red" style={{ marginLeft: '8px' }}>LATEST</Tag>}
+                <List.Item
+                  style={{ position: 'relative' }}
+                  className="version-item"
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}
+                    className="version-item-content"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: '#f5f5f5',
+                        borderRadius: '4px',
+                        marginRight: '16px'
+                      }}>
+                        <Text strong>{index + 1}</Text>
                       </div>
-                    }
-                    description={
-                      <div>
-                        <div>{item.changeLog?.content || 'Updated database schema'}</div>
-                        <div style={{ color: '#8c8c8c', fontSize: '12px', marginTop: '4px' }}>
-                          {item.createdDate ? formatDate(item.createdDate) : 'Unknown date'} by {userInfo?.fullName || item.changeLog?.creatorName || 'Unknown'}
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Text style={{ color: '#4285f4', marginRight: '8px', fontWeight: 500, fontSize: '14px' }}>
+                            {formatDate(item.createdDate)}
+                          </Text>
+                          <Text strong style={{ fontSize: '14px' }}>Version {item.codeVersion}</Text>
+                          <Text style={{ color: '#999', marginLeft: '8px', fontSize: '14px' }}>#{item.codeVersion}</Text>
+                          {index === 0 && <Tag color="red" style={{ marginLeft: '8px' }}>LATEST</Tag>}
                         </div>
                       </div>
-                    }
-                  />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {tagElements}
+                      </div>
+                      <div style={{ position: 'relative' }} className="view-code-change-container">
+                        {/* "View code change" button that appears on hover */}
+                        <Button
+                          type="primary"
+                          ghost
+                          icon={<DiffOutlined />}
+                          size="small"
+                          className="view-code-change-btn"
+                          style={{
+                            position: 'absolute',
+                            right: '50px',
+                            top: '0',
+                            display: 'none',
+                          }}
+                        >
+                          <Link to={`/projects/${projectId}/compare/${item.id}`}>View code change</Link>
+                        </Button>
+                      </div>
+                      <Avatar
+                        size="large"
+                        src={avatarUrl}
+                        icon={!avatarUrl ? <UserOutlined /> : undefined}
+                        style={{ backgroundColor: '#f5f5f5' }}
+                      />
+                    </div>
+                  </div>
                 </List.Item>
               );
             }}
           />
         </Card>
+
+        {/* Add global CSS styles */}
+        {getGlobalStyle()}
       </div>
     );
   };
@@ -998,13 +1363,268 @@ const DocumentationPage: React.FC = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" />
-      </div>
+  // Phân tích thông tin thay đổi từ diffChange
+  const parseDiffChange = (diffChange: string) => {
+    try {
+      if (!diffChange) return null;
+
+      // Parse diffChange JSON
+      const diffObj = JSON.parse(diffChange);
+
+      // Parse diffChanges string inside diffObj
+      if (diffObj.diffChanges) {
+        const diffChanges = JSON.parse(diffObj.diffChanges);
+
+        // Phân tích chi tiết về thay đổi cột
+        let addedColumns = 0;
+        let modifiedColumns = 0;
+        let removedColumns = 0;
+
+        if (diffChanges.tableChanges) {
+          // Duyệt qua từng bảng có thay đổi
+          Object.keys(diffChanges.tableChanges).forEach(tableId => {
+            const tableChanges = diffChanges.tableChanges[tableId];
+
+            // Duyệt qua từng thay đổi trong bảng
+            tableChanges.forEach((change: any) => {
+              // Kiểm tra loại thay đổi
+              if (change.property === 'columns') {
+                // Thay đổi liên quan đến cột
+                if (change.added) {
+                  addedColumns += change.added.length;
+                }
+                if (change.removed) {
+                  removedColumns += change.removed.length;
+                }
+                if (change.modified) {
+                  modifiedColumns += Object.keys(change.modified).length;
+                }
+              } else if (change.property === 'name' || change.property === 'dataType') {
+                // Thay đổi tên hoặc kiểu dữ liệu của cột
+                modifiedColumns++;
+              }
+            });
+          });
+        }
+
+        return {
+          totalChanges: diffChanges.totalChanges || 0,
+          addedTables: diffChanges.addedTables || [],
+          removedTables: diffChanges.removedTables || [],
+          addedTablesCount: diffChanges.addedTables?.length || 0,
+          removedTablesCount: diffChanges.removedTables?.length || 0,
+          modifiedTablesCount: diffChanges.tableChanges ? Object.keys(diffChanges.tableChanges).length : 0,
+          valueChangesCount: diffChanges.valueChangesCount || 0,
+          listChangesCount: diffChanges.listChangesCount || 0,
+          addedColumns,
+          modifiedColumns,
+          removedColumns
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error parsing diffChange:', error);
+      return null;
+    }
+  };
+
+  // Handle description edit mode toggle
+  const toggleDescriptionEdit = () => {
+    if (!isEditingDescription) {
+      // Enter edit mode
+      setEditedDescription(project?.description || '');
+      setIsEditingDescription(true);
+    } else {
+      // Exit edit mode without saving
+      setIsEditingDescription(false);
+    }
+  };
+
+  // Save edited description
+  const saveDescription = async () => {
+    if (!project) return;
+
+    try {
+      // Here you would typically call an API to update the description
+      // For now, we'll just update the local state
+      setProject({
+        ...project,
+        description: editedDescription
+      });
+
+      // Exit edit mode
+      setIsEditingDescription(false);
+
+      message.success('Description updated successfully');
+    } catch (error) {
+      console.error('Error updating description:', error);
+      message.error('Failed to update description');
+    }
+  };
+
+  // Function to handle opening the code comparison modal
+  const handleViewCodeChange = (version: VersionInfo, index: number) => {
+    setSelectedVersionForCompare(version);
+
+    // Get previous version if available
+    if (index < versions.length - 1) {
+      setPreviousVersion(versions[index + 1]);
+    } else {
+      // If this is the oldest version, there's no previous version to compare with
+      setPreviousVersion(null);
+    }
+
+    setIsCompareModalVisible(true);
+
+    // Generate diff if both versions are available
+    if (version && index < versions.length - 1) {
+      const currentContent = version.content || '';
+      const prevContent = versions[index + 1].content || '';
+      generateDiff(prevContent, currentContent);
+    }
+  };
+
+  // Function to calculate diff between two versions
+  const generateDiff = (oldContent: string, newContent: string) => {
+    const diffResult = diff.createPatch(
+      "dbml_changes",
+      oldContent,
+      newContent,
+      "Previous Version",
+      "Current Version"
     );
-  }
+    setDiffResult(diffResult);
+  };
+
+  // Function to close the compare modal
+  const handleCloseCompareModal = () => {
+    setIsCompareModalVisible(false);
+    setSelectedVersionForCompare(null);
+    setPreviousVersion(null);
+  };
+
+  // Add this function to handle the initialization of project sharing
+  const initializeProjectSharing = () => {
+    // Reset all share-related states
+    setShareType(1);
+    setSharePassword('');
+    setSharedLink('');
+    setShowPasswordField(false);
+    // Show the modal
+    setShareModalVisible(true);
+  };
+
+  // Add this function to handle share type selection
+  const handleShareTypeChange = (value: number) => {
+    setShareType(value);
+    setShowPasswordField(value === 3); // Show password field only for protected sharing
+  };
+
+  // Add this function to handle the sharing process
+  const handleShareProject = async () => {
+    if (!project) return;
+
+    setShareLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const payload: ShareFormValues = {
+        shareType,
+        passwordShare: showPasswordField ? sharePassword : null
+      };
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/sharing/${project.projectId}`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data && response.data.linkDocs) {
+        // Use the exact link returned by the API
+        setSharedLink(response.data.linkDocs);
+        message.success('Project shared successfully');
+      } else {
+        message.error('Failed to generate sharing link');
+      }
+    } catch (error) {
+      console.error('Error sharing project:', error);
+      message.error('Failed to share project');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  // Add this function to copy the shared link to clipboard
+  const copySharedLink = () => {
+    navigator.clipboard.writeText(sharedLink)
+      .then(() => {
+        message.success('Link copied to clipboard');
+      })
+      .catch((err) => {
+        console.error('Failed to copy link:', err);
+        message.error('Failed to copy link to clipboard');
+      });
+  };
+
+  // Add this function to handle shared project access
+  const handleSharedProjectAccess = async (projectId: string, shareType: number, password: string | null = null) => {
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/shared/${projectId}`,
+        {
+          passwordShare: password
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      // Process project data similar to fetchProjectDetails
+      if (response.data) {
+        setProject(response.data);
+        if (response.data.dbmlContent) {
+          setCurrentDbmlContent(response.data.dbmlContent);
+          parseDbmlContent(response.data.dbmlContent);
+          calculateStats(response.data.dbmlContent);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error accessing shared project:', error);
+
+      if (error.response?.status === 403) {
+        if (shareType === 3) {
+          // If password protected and access denied, show password modal again
+          message.error('Incorrect password');
+          setPasswordModalVisible(true);
+        } else {
+          // For other types, just show access denied
+          message.error('You do not have permission to access this project');
+          navigate('/');
+        }
+      } else {
+        message.error('Failed to load project');
+        navigate('/');
+      }
+    }
+  };
+
+  // Add this function to handle password submission for shared projects
+  const handlePasswordSubmit = () => {
+    if (passwordInput.trim()) {
+      handleSharedProjectAccess(sharedProjectId, sharedProjectType, passwordInput);
+      setPasswordModalVisible(false);
+    } else {
+      message.warning('Please enter a password');
+    }
+  };
 
   // Create options for version selector from fetched versions
   const versionOptions = versions.map(version => ({
@@ -1046,7 +1666,7 @@ const DocumentationPage: React.FC = () => {
               marginRight: '8px',
               cursor: 'pointer'
             }}
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/')}
           >
             <span>V</span>
           </div>
@@ -1059,7 +1679,8 @@ const DocumentationPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <Button
             type="text"
-            icon={<DownloadOutlined />}
+            icon={<ShareAltOutlined />}
+            onClick={initializeProjectSharing}
             style={{ marginRight: '8px' }}
           >
             Share
@@ -1164,7 +1785,7 @@ const DocumentationPage: React.FC = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <Text style={{ marginRight: '4px', fontSize: '13px' }}>
-                  {project?.creatorName || 'quandev03'}/{project?.projectName || 'Project 1'} • <Text strong style={{ fontSize: '13px' }}>{project?.projectCode || 'PRJ001'}</Text>
+                  <Text strong>{project?.ownerEmail || 'unknown'}</Text>/<Text strong>{project?.projectCode || 'Project'}</Text>
                 </Text>
               </div>
               {renderProjectInfo()}
@@ -1175,6 +1796,143 @@ const DocumentationPage: React.FC = () => {
           {activeTab === 'changelog' && renderChangelogTab()}
         </Content>
       </Layout>
+
+      {/* Use the new CodeCompareModal component */}
+      <CodeCompareModal
+        isVisible={isCompareModalVisible}
+        onClose={handleCloseCompareModal}
+        currentVersion={selectedVersionForCompare}
+        previousVersion={previousVersion}
+        diffResult={diffResult}
+      />
+
+      {/* Share Project Modal */}
+      <Modal
+        title="Share Project"
+        open={shareModalVisible}
+        onCancel={() => setShareModalVisible(false)}
+        footer={null}
+      >
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Share Type:</Text>
+            <Select
+              value={shareType}
+              onChange={handleShareTypeChange}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <Option value={1}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <GlobalOutlined style={{ marginRight: 8 }} />
+                  Public (Anyone with the link can view)
+                </div>
+              </Option>
+              <Option value={2}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <TeamOutlined style={{ marginRight: 8 }} />
+                  Private (Only specific users can view)
+                </div>
+              </Option>
+              <Option value={3}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <LockOutlined style={{ marginRight: 8 }} />
+                  Password Protected
+                </div>
+              </Option>
+            </Select>
+          </div>
+
+          {showPasswordField && (
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>Password:</Text>
+              <Input.Password
+                placeholder="Enter password for protection"
+                value={sharePassword}
+                onChange={(e) => setSharePassword(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+            </div>
+          )}
+
+          {sharedLink ? (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>Share Link:</Text>
+                <Input
+                  value={sharedLink}
+                  readOnly
+                  addonAfter={
+                    <CopyOutlined
+                      onClick={copySharedLink}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  }
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Button onClick={() => setShareModalVisible(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'right' }}>
+              <Button onClick={() => setShareModalVisible(false)} style={{ marginRight: 8 }}>
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleShareProject}
+                loading={shareLoading}
+                disabled={showPasswordField && !sharePassword}
+              >
+                Share
+              </Button>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Password Input Modal for Shared Projects */}
+      <Modal
+        title="Password Required"
+        open={passwordModalVisible}
+        onCancel={() => {
+          setPasswordModalVisible(false);
+          navigate('/');
+        }}
+        footer={[
+          <Button
+            key="back"
+            onClick={() => {
+              setPasswordModalVisible(false);
+              navigate('/');
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={shareLoading}
+            onClick={handlePasswordSubmit}
+          >
+            Submit
+          </Button>
+        ]}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text>This project is password protected. Please enter the password to continue:</Text>
+          <Input.Password
+            placeholder="Enter password"
+            style={{ marginTop: 16 }}
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            onPressEnter={handlePasswordSubmit}
+          />
+        </div>
+      </Modal>
     </Layout>
   );
 };

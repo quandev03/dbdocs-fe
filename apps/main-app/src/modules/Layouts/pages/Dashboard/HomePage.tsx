@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, Modal, Form } from 'antd';
+import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, Modal, Form, message } from 'antd';
 import type { Breakpoint } from 'antd/es/_util/responsiveObserver';
 import { 
   PlusOutlined, 
@@ -207,7 +207,7 @@ const HomePage: React.FC = () => {
 
   const handleViewProject = (projectId: string) => {
     // Navigate to project details page
-    navigate(`/projects/${projectId}`);
+    //navigate(`/projects/${projectId}`);
   };
 
   const handleMenuItemClick = (menuKey: string) => {
@@ -235,6 +235,54 @@ const HomePage: React.FC = () => {
     if (logout) {
       logout();
       navigate('/login');
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    setLoading(true);
+    try {
+      // Gọi API xoá
+      await apiService.delete(`/api/v1/projects/${projectId}`);
+  
+      // Xoá khỏi state ngay lập tức để UI cập nhật nhanh
+      setProjects(prev => prev.filter(p => p.projectId !== projectId));
+  
+      Modal.success({
+        title: 'Success',
+        content: 'Project deleted successfully',
+      });
+  
+      // Gọi lại fetchProjects để đồng bộ (nếu lỗi chỉ cảnh báo nhỏ)
+      try {
+        await fetchProjects();
+      } catch (fetchErr) {
+        console.error('Error refreshing projects list:', fetchErr);
+        message.warning('Project was deleted but the list could not be refreshed.');
+      }
+    } catch (err: any) {
+      console.error('Error deleting project:', err);
+      
+      // Hiển thị thông báo lỗi chi tiết hơn
+      let errorMessage = 'Failed to delete project';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      Modal.error({
+        title: 'Error',
+        content: errorMessage,
+      });
+      
+      // Gọi lại fetchProjects để đảm bảo UI đồng bộ với server
+      try {
+        await fetchProjects();
+      } catch (fetchErr) {
+        console.error('Error refreshing projects after delete failure:', fetchErr);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -301,7 +349,11 @@ const HomePage: React.FC = () => {
                 { key: '1', icon: <SearchOutlined />, label: 'View details' },
                 { key: '2', icon: <EditOutlined />, label: 'Rename' },
                 { type: 'divider' },
-                { key: '3', icon: <LogoutOutlined />, label: 'Delete', danger: true }
+                { key: '3', icon: <LogoutOutlined />, label: 'Delete', danger: true, 
+                  onClick: () => {
+                    handleDeleteProject(record.projectId);
+                  }
+                }
               ]
             }}
             trigger={['click']}

@@ -15,9 +15,9 @@ export enum PermissionLevel {
 export const checkProjectPermission = async (projectId: string): Promise<PermissionResponse> => {
   try {
     const token = localStorage.getItem('token'); // Lấy token từ localStorage
-    
+
     const response = await axios.get(
-      `http://localhost:8080/api/v1/project-access/permission-level/${projectId}`,
+      `${import.meta.env.VITE_API_DOMAIN}/api/v1/project-access/permission-level/${projectId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -25,7 +25,7 @@ export const checkProjectPermission = async (projectId: string): Promise<Permiss
         }
       }
     );
-    
+
     return response.data;
   } catch (error) {
     console.error('Error checking project permission:', error);
@@ -46,4 +46,4 @@ export const getPermissionText = (permissionLevel: number): string => {
     default:
       return 'Bạn không có quyền truy cập dự án này';
   }
-}; 
+};

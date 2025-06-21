@@ -1,10 +1,9 @@
 import React, { useEffect } from 'react';
 import { Spin } from 'antd';
 import styled from 'styled-components';
-import { AUTH_CONFIG, FRONTEND_CONFIG } from '../../../../config';
+import { AUTH_CONFIG } from '../../../../config';
 
 const { TOKEN, TOKEN_TYPE, EXPIRES_IN, EXPIRY_TIME } = AUTH_CONFIG.STORAGE_KEYS;
-const FRONTEND_ORIGIN = FRONTEND_CONFIG.BASE_URL;
 
 const CallbackContainer = styled.div`
   display: flex;
@@ -64,14 +63,15 @@ const AuthCallback: React.FC = () => {
       // Send token to parent window via postMessage
       if (window.opener) {
         try {
-          // First try with specific frontend origin
-          const frontendOrigin = FRONTEND_ORIGIN;
-          window.opener.postMessage(tokens, frontendOrigin);
+          // Use window.opener.origin if available
+          const openerOrigin = window.opener.origin || window.location.origin || '*';
+          console.log('Posting message to origin:', openerOrigin);
+          window.opener.postMessage(tokens, openerOrigin);
           
           // Close the popup after a short delay
           setTimeout(() => window.close(), 1000);
         } catch (e) {
-          console.error('Error posting message to specific origin:', e);
+          console.error('Error posting message to opener origin:', e);
           
           // Fallback to '*' origin (less secure but necessary for cross-origin)
           try {
@@ -87,7 +87,8 @@ const AuthCallback: React.FC = () => {
       console.error('Authentication error:', tokens.error);
       if (window.opener) {
         try {
-          window.opener.postMessage({ error: tokens.error }, FRONTEND_ORIGIN);
+          const openerOrigin = window.opener.origin || window.location.origin || '*';
+          window.opener.postMessage({ error: tokens.error }, openerOrigin);
         } catch (e) {
           try {
             window.opener.postMessage({ error: tokens.error }, '*');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty } from 'antd';
+import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, message } from 'antd';
 import { 
   PlusOutlined, 
   SearchOutlined, 
@@ -19,6 +19,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import '../styles/HomePage.css';
+import { apiService } from '../../../services/apiService';
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
@@ -32,9 +33,7 @@ const HomePage: React.FC = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('my-projects');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [loading, setLoading] = useState(true);
-  
-  // Mock data for projects
-  const projects = [
+  const [projects, setProjects] = useState([
     {
       id: '1',
       name: 'Project 1',
@@ -70,15 +69,78 @@ const HomePage: React.FC = () => {
       createdAt: 'Tomorrow at 8am',
       status: 'active'
     }
-  ];
+  ]);
 
-  // Simulate loading data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+  // Format date with relative time
+  const formatDate = (timestamp: number | string) => {
+    if (!timestamp) return 'N/A';
     
-    return () => clearTimeout(timer);
+    // Create date object directly since timestamp is already in milliseconds
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    const diffMonth = Math.floor(diffDay / 30);
+    
+    // Less than 1 minute: show in seconds
+    if (diffMin < 1) {
+      return `${diffSec} giây trước`;
+    }
+    
+    // Less than 1 hour: show in minutes
+    if (diffHour < 1) {
+      return `${diffMin} phút trước`;
+    }
+    
+    // Less than 1 day: show in hours
+    if (diffDay < 1) {
+      return `${diffHour} giờ trước`;
+    }
+    
+    // Less than 1 month: show in days
+    if (diffMonth < 1) {
+      return `${diffDay} ngày trước`;
+    }
+    
+    // More than 1 month: show in dd/MM/yyyy format
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      // Call API to get projects list
+      const response = await apiService.get<any[]>('/api/v1/projects');
+      
+      // Transform API data to UI format
+      const formattedProjects = response.map((project: any) => ({
+        id: project.projectId,
+        name: project.projectName || project.projectCode || 'Unnamed Project',
+        lastModified: project.modifiedDate ? formatDate(project.modifiedDate) : 'N/A',
+        createdAt: project.createdDate ? formatDate(project.createdDate) : 'N/A',
+        status: 'active',
+        description: project.description || ''
+      }));
+      
+      setProjects(formattedProjects);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      message.error('Failed to load projects');
+      setLoading(false);
+    }
+  };
+
+  // Load projects when component mounts
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
   // Handle responsive behavior
@@ -118,6 +180,26 @@ const HomePage: React.FC = () => {
   const handleViewProject = (projectId: string) => {
     // Navigate to project details page
     navigate(`/projects/${projectId}`);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      setLoading(true);
+      await apiService.delete(`/api/v1/projects/${projectId}`);
+      message.success('Project deleted successfully');
+      // Refresh projects list after deletion
+      await fetchProjects();
+    } catch (err: any) {
+      console.error('Error deleting project:', err);
+      if (err.response?.status === 403) {
+        message.error('You do not have permission to delete this project');
+      } else if (err.response?.status === 404) {
+        message.error('Project not found');
+      } else {
+        message.error('Failed to delete project');
+      }
+      setLoading(false);
+    }
   };
 
   const handleMenuItemClick = (menuKey: string) => {
@@ -161,13 +243,13 @@ const HomePage: React.FC = () => {
       title: 'Last modified',
       dataIndex: 'lastModified',
       key: 'lastModified',
-      responsive: ['md']
+      responsive: ['md'] as any
     },
     {
       title: 'Created at',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      responsive: ['lg']
+      responsive: ['lg'] as any
     },
     {
       title: '',
@@ -200,9 +282,18 @@ const HomePage: React.FC = () => {
             overlay={
               <Menu>
                 <Menu.Item key="1" icon={<SearchOutlined />}>View details</Menu.Item>
-                <Menu.Item key="2" icon={<EditOutlined />}>Rename</Menu.Item>
+                {/* <Menu.Item key="2" icon={<EditOutlined />}>Rename</Menu.Item> */}
                 <Menu.Divider />
-                <Menu.Item key="3" icon={<LogoutOutlined />} danger>Delete</Menu.Item>
+                <Menu.Item
+                key="3" 
+                icon={<LogoutOutlined />} 
+                danger
+                onClick={() => {
+                  handleDeleteProject(record.id);
+                }}
+                >
+                  Delete
+                  </Menu.Item>
               </Menu>
             } 
             trigger={['click']}

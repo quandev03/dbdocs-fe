@@ -8,6 +8,7 @@ import DocumentationPage from './modules/Dashboard/pages/DocumentationPage';
 import { DbmlEditorPage } from './modules/Dashboard/pages/DbmlEditorPage';
 import NotFound from './modules/Errors/NotFound';
 import ErrorBoundary from './modules/Errors/ErrorBoundary';
+import CodeComparePage from './modules/Dashboard/pages/CodeComparePage';
 
 export const router = createBrowserRouter([
   {
@@ -63,6 +64,35 @@ export const router = createBrowserRouter([
         <ProtectedRoute>
           <DbmlEditorPage />
         </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/projects/:projectId/compare/:versionId',
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <CodeComparePage />
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/project/:shareType/:projectId/docs',
+    element: (
+      <ErrorBoundary>
+        <DocumentationPage />
+      </ErrorBoundary>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/project/:shareType/:projectId',
+    element: (
+      <ErrorBoundary>
+        <DocumentationPage />
       </ErrorBoundary>
     ),
     errorElement: <NotFound />,

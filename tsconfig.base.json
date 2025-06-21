@@ -21,7 +21,9 @@
       "@main-app/routers/*": ["apps/main-app/src/routers/*"],
       "@main-app/services/*": ["apps/main-app/src/services/*"],
       "@vissoft-react/common": ["libs/common/src/index.ts"],
-      "@vissoft-react/dbml-editor": ["libs/dbml-editor/src/index.ts"]
+      "@vissoft-react/dbml-editor": ["libs/dbml-editor/src/index.ts"],
+    "@main-app/config": ["apps/main-app/src/config/index.ts"],
+    "@main-app/config/*": ["apps/main-app/src/config/*"]
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -3,9 +3,9 @@ import styled from 'styled-components';
 import { Tooltip, Button, Popover, Space, Menu, Modal } from 'antd';
 import Editor, { OnMount, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { 
-  ZoomInOutlined, 
-  ZoomOutOutlined, 
+import {
+  ZoomInOutlined,
+  ZoomOutOutlined,
   FullscreenOutlined,
   MoreOutlined,
   BgColorsOutlined
@@ -18,12 +18,15 @@ loader.config({
   },
 });
 
-interface DbmlEditorProps {
+export interface DbmlEditorProps {
   initialValue?: string;
+  dbmlContent?: string;
+  projectId?: string;
   onChange?: (value: string) => void;
   height?: string;
   readOnly?: boolean;
   type?: string;
+  showDiagramOnly?: boolean;
 }
 
 interface TableField {
@@ -67,6 +70,9 @@ const EditorPane = styled.div`
   display: flex;
   overflow: hidden;
   position: relative;
+  background-color: #fff;
+  border: none;
+  box-shadow: none;
 `;
 
 const CodeEditorPane = styled.div<{ width: string }>`
@@ -74,7 +80,10 @@ const CodeEditorPane = styled.div<{ width: string }>`
   height: 100%;
   overflow: hidden;
   position: relative;
-  transition: width 0.2s ease;
+  transform-origin: left center;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background-color: #fff;
+  border-right: 1px solid #e8e8e8;
 `;
 
 const StatusBar = styled.div`
@@ -82,32 +91,64 @@ const StatusBar = styled.div`
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: #007acc;
-  color: white;
+  background-color: #f5f5f5;
+  color: #666;
   padding: 2px 10px;
   font-size: 12px;
   z-index: 20;
   text-align: right;
+  border-top: 1px solid #e8e8e8;
 `;
 
 const DiagramPane = styled.div<{ width: string }>`
   width: ${props => props.width};
   height: 100%;
   overflow: hidden;
-  background-color: #f5f5f5;
+  background-color: #fff;
   color: #333;
   position: relative;
-  transition: width 0.2s ease;
+  transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex: ${props => props.width === '100%' ? 1 : 'none'};
+  border-left: 1px solid #e8e8e8;
 `;
 
 const Resizer = styled.div`
   width: 10px;
   height: 100%;
-  background-color: #2d2d2d;
+  background-color: #f5f5f5;
   cursor: col-resize;
   z-index: 30;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #e8e8e8;
   &:hover {
-    background-color: #3d3d3d;
+    background-color: #e8e8e8;
+  }
+`;
+
+const ToggleButton = styled.div`
+  position: absolute;
+  height: 40px;
+  width: 26px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  cursor: pointer;
+  z-index: 31;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, background-color 0.3s ease;
+  &:hover {
+    background-color: #e8e8e8;
+    color: #333;
+    transform: scale(1.1);
+  }
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
@@ -116,7 +157,7 @@ const DiagramContainer = styled.div`
   width: 100%;
   height: 100%;
   overflow: auto;
-  background-color: #f5f5f5;
+  background-color: #fff;
 `;
 
 const DiagramCanvas = styled.div<{ scale: number }>`
@@ -125,6 +166,7 @@ const DiagramCanvas = styled.div<{ scale: number }>`
   height: 3000px;
   transform-origin: 0 0;
   transform: scale(${props => props.scale});
+  background-color: #f8f8f8;
 `;
 
 const TableCard = styled.div<{ x: number; y: number }>`
@@ -132,8 +174,8 @@ const TableCard = styled.div<{ x: number; y: number }>`
   left: ${props => props.x}px;
   top: ${props => props.y}px;
   background: white;
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   width: 280px;
   cursor: move;
   z-index: 10;
@@ -142,10 +184,10 @@ const TableCard = styled.div<{ x: number; y: number }>`
 const TableHeader = styled.div<{ color?: string }>`
   background: ${props => props.color || '#1890ff'};
   color: white;
-  padding: 10px;
+  padding: 8px 12px;
   font-weight: bold;
-  border-top-left-radius: 5px;
-  border-top-right-radius: 5px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -168,7 +210,7 @@ const TableMenuButton = styled.div`
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  
+
   &:hover {
     background-color: rgba(255, 255, 255, 0.2);
   }
@@ -176,7 +218,7 @@ const TableMenuButton = styled.div`
 
 const TableWrapper = styled.div`
   position: relative;
-  
+
   &:hover ${TableMenuButton} {
     opacity: 1;
   }
@@ -216,6 +258,7 @@ const RelationshipLine = styled.svg`
   path {
     stroke-linecap: round;
     stroke-linejoin: round;
+    opacity: 0.8;
   }
 `;
 
@@ -223,95 +266,108 @@ const ZoomControls = styled.div`
   position: absolute;
   bottom: 20px;
   right: 20px;
-  z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
+  z-index: 20;
+  background-color: white;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  .ant-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
 `;
 
 const MiniMap = styled.div`
   position: absolute;
   bottom: 20px;
   left: 20px;
-  width: 150px;
-  height: 100px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #ccc;
+  width: 200px;
+  height: 150px;
+  background-color: white;
+  border: 1px solid #e8e8e8;
   border-radius: 4px;
-  z-index: 100;
   overflow: hidden;
+  z-index: 20;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 `;
 
 const MiniMapContent = styled.div`
-  transform: scale(0.1);
-  transform-origin: 0 0;
-  width: 1000%;
-  height: 1000%;
   position: relative;
+  width: 100%;
+  height: 100%;
+  transform: scale(0.05);
+  transform-origin: 0 0;
 `;
 
-const ViewportIndicator = styled.div<{ x: number; y: number; width: number; height: number }>`
+const ViewportIndicator = styled.div<{x: number, y: number, width: number, height: number}>`
   position: absolute;
-  left: ${props => props.x}px;
   top: ${props => props.y}px;
+  left: ${props => props.x}px;
   width: ${props => props.width}px;
   height: ${props => props.height}px;
   border: 2px solid #1890ff;
-  background: rgba(24, 144, 255, 0.1);
-  z-index: 101;
+  background-color: rgba(24, 144, 255, 0.1);
 `;
 
 // Simple parser to extract table names and fields from DBML
 const parseDbml = (dbmlCode: string) => {
   const tables: TableData[] = [];
   const relationships: Relationship[] = [];
-  
+
   // Extract tables using regex
   const tableRegex = /Table\s+([a-zA-Z0-9._]+)(?:\s+as\s+([a-zA-Z0-9_]+))?\s*{([^}]*)}/g;
   let tableMatch;
   let tableIndex = 0;
-  
+
   while ((tableMatch = tableRegex.exec(dbmlCode)) !== null) {
     const tableName = tableMatch[1];
     const tableContent = tableMatch[3];
-    
+
     const fields: TableField[] = [];
-    
+
     // Parse fields
     const fieldLines = tableContent.split('\n').filter(line => line.trim() !== '');
-    
+
     for (const line of fieldLines) {
       // Skip comments and non-field lines
       if (line.trim().startsWith('//') || line.trim().startsWith('Indexes')) continue;
-      
+
       const fieldParts = line.trim().split(/\s+/);
       if (fieldParts.length >= 2) {
         const fieldName = fieldParts[0];
         const fieldType = fieldParts[1];
-        
+
         const isPk = line.includes('[pk') || line.includes('primary key');
-        
+
         // Extract note if available
         let note;
         const noteMatch = line.match(/note:\s*['"]([^'"]*)['"]/);
         if (noteMatch) {
           note = noteMatch[1];
         }
-        
+
         fields.push({
           name: fieldName,
           type: fieldType,
           isPk,
           note
         });
-        
+
         // Check for inline relationship definition [Ref: > users.id]
         const refMatch = line.match(/\[Ref:\s*([<>-]+)\s+([a-zA-Z0-9._]+)\.([a-zA-Z0-9_]+)\]/);
         if (refMatch) {
           const relationType = refMatch[1];
           const toTable = refMatch[2];
           const toField = refMatch[3];
-          
+
           relationships.push({
             from: {
               table: tableName,
@@ -326,28 +382,28 @@ const parseDbml = (dbmlCode: string) => {
         }
       }
     }
-    
+
     tables.push({
       name: tableName,
       fields,
       x: 100 + (tableIndex % 3) * 320,
       y: 100 + Math.floor(tableIndex / 3) * 250
     });
-    
+
     tableIndex++;
   }
-  
+
   // Extract traditional relationships (still support both syntaxes)
   const refRegex = /Ref:\s*([a-zA-Z0-9._]+)\.([a-zA-Z0-9_]+)\s*([<>-]+)\s*([a-zA-Z0-9._]+)\.([a-zA-Z0-9_]+)/g;
   let refMatch;
-  
+
   while ((refMatch = refRegex.exec(dbmlCode)) !== null) {
     const fromTable = refMatch[1];
     const fromField = refMatch[2];
     const relationType = refMatch[3];
     const toTable = refMatch[4];
     const toField = refMatch[5];
-    
+
     relationships.push({
       from: {
         table: fromTable,
@@ -360,7 +416,7 @@ const parseDbml = (dbmlCode: string) => {
       type: relationType
     });
   }
-  
+
   return { tables, relationships };
 };
 
@@ -393,14 +449,20 @@ const ColorButton = styled.button<{ color: string }>`
   }
 `;
 
-export const DbmlEditor: React.FC<DbmlEditorProps> = ({
+export const DbmlEditor = React.forwardRef<
+  { zoomIn: () => void; zoomOut: () => void; fitToView: () => void },
+  DbmlEditorProps
+>(({
   initialValue = '',
+  dbmlContent,
+  projectId,
   onChange,
-  height = '100vh',
+  height = '90vh',
   readOnly = false,
-  type = 'dbml'
-}) => {
-  const [editorValue, setEditorValue] = useState<string>(initialValue);
+  type = 'dbml',
+  showDiagramOnly = false
+}, ref) => {
+  const [editorValue, setEditorValue] = useState<string>(dbmlContent || initialValue);
   const [paneRatio, setPaneRatio] = useState<number>(0.5); // 50% code, 50% diagram
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [tables, setTables] = useState<TableData[]>([]);
@@ -419,28 +481,29 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
   const [colorPickerVisible, setColorPickerVisible] = useState<string | null>(null);
   const [colorModalVisible, setColorModalVisible] = useState<boolean>(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  
+  const [isEditorVisible, setIsEditorVisible] = useState<boolean>(!showDiagramOnly);
+
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const diagramRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const resizerRef = useRef<HTMLDivElement | null>(null);
   const miniMapRef = useRef<HTMLDivElement | null>(null);
-  
+
   console.log("DbmlEditor readOnly prop:", readOnly);
-  
+
   const handleEditorChange = (newValue: string | undefined) => {
     const code = newValue || '';
     setEditorValue(code);
-    
+
     if (onChange) {
       onChange(code);
     }
-    
+
     // Parse DBML on change
     try {
       const parsed = parseDbml(code);
-      
+
       // Preserve positions of existing tables
       const updatedTables = parsed.tables.map(newTable => {
         const existingTable = tables.find(t => t.name === newTable.name);
@@ -453,7 +516,7 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
         }
         return newTable;
       });
-      
+
       setTables(updatedTables);
       setRelationships(parsed.relationships);
 
@@ -483,7 +546,7 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       }
     }
   };
-  
+
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
 
@@ -516,61 +579,62 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
 
   // Parse initial value
   useEffect(() => {
-    if (initialValue) {
-      setEditorValue(initialValue);
+    const contentToUse = dbmlContent || initialValue;
+    if (contentToUse) {
+      setEditorValue(contentToUse);
       try {
-        const parsed = parseDbml(initialValue);
+        const parsed = parseDbml(contentToUse);
         setTables(parsed.tables);
         setRelationships(parsed.relationships);
       } catch (error) {
         console.error('Error parsing initial DBML:', error);
       }
     }
-  }, [initialValue]);
-  
+  }, [initialValue, dbmlContent]);
+
   // Handle table drag start
   const handleTableMouseDown = (e: React.MouseEvent, tableName: string) => {
     if (e.button !== 0) return; // Only left mouse button
-    
+
     const tableElement = e.currentTarget as HTMLElement;
     const rect = tableElement.getBoundingClientRect();
-    
+
     // Calculate offset between mouse position and table top-left corner
     const offsetX = e.clientX - rect.left;
     const offsetY = e.clientY - rect.top;
-    
+
     setDraggedTable(tableName);
     setDragStartPos({ x: offsetX, y: offsetY });
-    
+
     e.preventDefault();
   };
-  
+
   // Handle mouse move for dragging
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggedTable || !diagramRef.current) return;
-    
+
     const diagramRect = diagramRef.current.getBoundingClientRect();
     const scrollLeft = diagramRef.current.scrollLeft;
     const scrollTop = diagramRef.current.scrollTop;
-    
+
     // Calculate new position considering scroll position, scale, and drag offset
     const x = (e.clientX - diagramRect.left + scrollLeft) / scale - dragStartPos.x;
     const y = (e.clientY - diagramRect.top + scrollTop) / scale - dragStartPos.y;
-    
-    setTables(prevTables => 
-      prevTables.map(table => 
-        table.name === draggedTable 
-          ? { ...table, x, y } 
+
+    setTables(prevTables =>
+      prevTables.map(table =>
+        table.name === draggedTable
+          ? { ...table, x, y }
           : table
       )
     );
   }, [draggedTable, scale, dragStartPos]);
-  
+
   // Handle mouse up to end dragging
   const handleMouseUp = useCallback(() => {
     setDraggedTable(null);
   }, []);
-  
+
   // Add and remove event listeners for dragging
   useEffect(() => {
     if (draggedTable) {
@@ -580,13 +644,13 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     }
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [draggedTable, handleMouseMove, handleMouseUp]);
-  
+
   // Update viewport position for minimap
   useEffect(() => {
     const updateViewport = () => {
@@ -594,21 +658,21 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
         const diagramRect = diagramRef.current.getBoundingClientRect();
         const scrollLeft = diagramRef.current.scrollLeft;
         const scrollTop = diagramRef.current.scrollTop;
-        
+
         setViewportPos({
           x: scrollLeft / scale,
           y: scrollTop / scale
         });
       }
     };
-    
+
     const diagram = diagramRef.current;
     if (diagram) {
       diagram.addEventListener('scroll', updateViewport);
       window.addEventListener('resize', updateViewport);
       updateViewport();
     }
-    
+
     return () => {
       if (diagram) {
         diagram.removeEventListener('scroll', updateViewport);
@@ -616,32 +680,32 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       }
     };
   }, [scale]);
-  
+
   // Zoom in function
   const zoomIn = () => {
     setScale(prevScale => Math.min(prevScale + 0.1, 2.0));
   };
-  
+
   // Zoom out function
   const zoomOut = () => {
     setScale(prevScale => Math.max(prevScale - 0.1, 0.3));
   };
-  
+
   // Reset zoom
   const resetZoom = () => {
     setScale(1.0);
   };
-  
+
   // Fit diagram to view
   const fitToView = () => {
     if (!diagramRef.current) return;
-    
+
     // Find diagram bounds
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
-    
+
     if (tables.length === 0) {
       setScale(1.0);
       return;
@@ -653,19 +717,19 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       maxX = Math.max(maxX, table.x + 280); // table width
       maxY = Math.max(maxY, table.y + table.fields.length * 36 + 40); // header + fields
     });
-    
+
     // Add padding
     minX -= 50;
     minY -= 50;
     maxX += 50;
     maxY += 50;
-    
+
     const diagramWidth = diagramRef.current.clientWidth;
     const diagramHeight = diagramRef.current.clientHeight;
-    
+
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
-    
+
     if (contentWidth <= 0 || contentHeight <= 0) {
       setScale(1.0);
       return;
@@ -675,9 +739,9 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
     const scaleX = diagramWidth / contentWidth;
     const scaleY = diagramHeight / contentHeight;
     const newScale = Math.min(scaleX, scaleY, 1.0); // Cap at 1.0 to prevent too much zoom
-    
+
     setScale(newScale);
-    
+
     // Scroll to center
     setTimeout(() => {
       if (diagramRef.current) {
@@ -686,7 +750,7 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       }
     }, 50);
   };
-  
+
   // Toggle line style
   const toggleLineStyle = () => {
     // Rotate through the three line styles
@@ -698,101 +762,195 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       setLineStyle('straight');
     }
   };
-  
+
   // Find coordinates for relationship lines
   const getRelationshipCoordinates = (relationship: Relationship) => {
     const fromTable = tables.find(t => t.name === relationship.from.table);
     const toTable = tables.find(t => t.name === relationship.to.table);
-    
+
     if (!fromTable || !toTable) return null;
-    
+
     // Find field positions
     const fromFieldIndex = fromTable.fields.findIndex(f => f.name === relationship.from.field);
     const toFieldIndex = toTable.fields.findIndex(f => f.name === relationship.to.field);
-    
+
     if (fromFieldIndex === -1 || toFieldIndex === -1) return null;
-    
+
     // Calculate field y positions (header height + field height * index)
     const headerHeight = 40;
     const fieldHeight = 36;
-    
-    const fromX = fromTable.x + 280; // Right side of the table
+
+    const tableWidth = 280;
+
+    // Determine table positions
+    const fromTableCenterX = fromTable.x + tableWidth/2;
+    const fromTableCenterY = fromTable.y + headerHeight + (fromTable.fields.length * fieldHeight)/2;
+
+    const toTableCenterX = toTable.x + tableWidth/2;
+    const toTableCenterY = toTable.y + headerHeight + (toTable.fields.length * fieldHeight)/2;
+
+    // Calculate central positions for fields
     const fromY = fromTable.y + headerHeight + fieldHeight * fromFieldIndex + fieldHeight / 2;
-    
-    const toX = toTable.x; // Left side of the table
     const toY = toTable.y + headerHeight + fieldHeight * toFieldIndex + fieldHeight / 2;
-    
+
+    // Determine which sides of the tables to connect based on their relative positions
+    let fromX, toX;
+
+    // Check if tables are more horizontal or vertical to each other
+    const dx = Math.abs(toTableCenterX - fromTableCenterX);
+    const dy = Math.abs(toTableCenterY - fromTableCenterY);
+
+    if (dx > dy) {
+      // Tables are more horizontally aligned
+      if (fromTableCenterX < toTableCenterX) {
+        // FromTable is to the left of ToTable
+        fromX = fromTable.x + tableWidth; // Right side of fromTable
+        toX = toTable.x; // Left side of toTable
+      } else {
+        // FromTable is to the right of ToTable
+        fromX = fromTable.x; // Left side of fromTable
+        toX = toTable.x + tableWidth; // Right side of toTable
+      }
+    } else {
+      // Tables are more vertically aligned
+      if (fromTableCenterY < toTableCenterY) {
+        // FromTable is above ToTable
+        fromX = fromTable.x + (relationship.from.field === relationship.to.field ? 40 : 80); // Offset from left edge
+        toX = toTable.x + (relationship.from.field === relationship.to.field ? 40 : 120); // Offset from left edge
+      } else {
+        // FromTable is below ToTable
+        fromX = fromTable.x + (relationship.from.field === relationship.to.field ? 120 : 200); // Offset from left edge
+        toX = toTable.x + (relationship.from.field === relationship.to.field ? 200 : 160); // Offset from left edge
+      }
+    }
+
     return { fromX, fromY, toX, toY };
   };
-  
+
   // Draw arrow based on relationship type and line style
   const getArrowPath = (coords: { fromX: number, fromY: number, toX: number, toY: number }, type: string) => {
     const { fromX, fromY, toX, toY } = coords;
-    
+
     // Path for the line
     let path = '';
-    
+
+    // Hướng từ điểm bắt đầu đến điểm kết thúc
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
     if (lineStyle === 'straight') {
       // Simple straight line
       path = `M ${fromX} ${fromY} L ${toX} ${toY}`;
     } else if (lineStyle === 'curved') {
       // Bezier curve with improved control points
-      const dx = toX - fromX;
-      const dy = toY - fromY;
-      const controlLen = Math.sqrt(dx * dx + dy * dy) * 0.4;
-      
-      // Create nicer curves by using appropriate control points
+      // Tính toán độ cong dựa trên khoảng cách giữa 2 điểm
+      const controlLen = Math.min(distance * 0.4, 150);
+
+      // Tính toán hướng ra cho đường cong
+      const isHorizontal = Math.abs(dx) > Math.abs(dy);
+
+      if (isHorizontal) {
+        // Đường cong ngang
       path = `M ${fromX} ${fromY} C ${fromX + controlLen} ${fromY}, ${toX - controlLen} ${toY}, ${toX} ${toY}`;
+      } else {
+        // Đường cong dọc với offset để tránh chồng lên schema
+        const offsetX = 30;
+        const midY = (fromY + toY) / 2;
+
+        // Xác định xem nên offset về bên nào
+        const fromOffsetX = dx > 0 ? fromX + offsetX : fromX - offsetX;
+        const toOffsetX = dx > 0 ? toX + offsetX : toX - offsetX;
+
+        path = `M ${fromX} ${fromY}
+                Q ${fromOffsetX} ${fromY} ${fromOffsetX} ${fromY + (midY - fromY) * 0.3}
+                L ${fromOffsetX} ${midY}
+                L ${toOffsetX} ${midY}
+                Q ${toOffsetX} ${toY - (toY - midY) * 0.3} ${toX} ${toY}`;
+      }
     } else if (lineStyle === 'orthogonal') {
-      // Orthogonal line with smoother corners
+      // Orthogonal line with improved routing
+      const isHorizontal = Math.abs(dx) > Math.abs(dy);
+      const radius = 15; // Corner radius
+
+      if (isHorizontal) {
+        // Horizontal dominant routing
       const midX = (fromX + toX) / 2;
-      
-      // Add a small radius for corners (prettier than sharp angles)
-      const radius = 8; // Corner radius
-      
-      // Horizontal to vertical path
-      path = `M ${fromX} ${fromY} 
-              H ${midX - radius} 
+
+      path = `M ${fromX} ${fromY}
+              H ${midX - radius}
               Q ${midX} ${fromY} ${midX} ${fromY + (toY > fromY ? radius : -radius)}
               V ${toY - (toY > fromY ? radius : -radius)}
               Q ${midX} ${toY} ${midX + radius} ${toY}
               H ${toX}`;
+      } else {
+        // Vertical dominant routing - use offset to avoid crossing tables
+        const offsetX = 40; // Offset to avoid schema
+
+        // Xác định xem nên offset về bên nào
+        const direction = dx > 0 ? 1 : -1;
+        const fromOffsetX = fromX + (offsetX * direction);
+        const toOffsetX = toX + (offsetX * direction);
+
+        path = `M ${fromX} ${fromY}
+                H ${fromOffsetX}
+                V ${toY}
+                H ${toX}`;
+      }
     }
-    
+
     // Arrow head
     const arrowSize = 8;
-    
-    // Calculate angle for arrow heads
-    const angle = Math.atan2(toY - fromY, toX - fromX);
-    
-    // Adjust arrow position to be at the end of the line
-    const arrowX = toX;
-    const arrowY = toY;
-    
+
+    // Calculate angle for arrow heads based on connection approach
+    let arrowAngle;
+
+    if (lineStyle === 'orthogonal') {
+      // For orthogonal, arrow head direction depends on the final segment
+      if (Math.abs(dx) > Math.abs(dy)) {
+        // Last segment is horizontal
+        arrowAngle = dx > 0 ? 0 : Math.PI;
+      } else {
+        // Last segment is vertical
+        arrowAngle = dy > 0 ? Math.PI/2 : -Math.PI/2;
+      }
+    } else {
+      // For curved and straight, use the direct angle
+      arrowAngle = Math.atan2(toY - fromY, toX - fromX);
+    }
+
     // Draw different arrow heads based on relationship type
     if (type === '>') {
       // One-to-many: arrow at 'to' side
-      path += ` M ${arrowX} ${arrowY} L ${arrowX - arrowSize * Math.cos(angle - Math.PI/6)} ${arrowY - arrowSize * Math.sin(angle - Math.PI/6)} L ${arrowX - arrowSize * Math.cos(angle + Math.PI/6)} ${arrowY - arrowSize * Math.sin(angle + Math.PI/6)} Z`;
+      path += ` M ${toX} ${toY} L ${toX - arrowSize * Math.cos(arrowAngle - Math.PI/6)} ${toY - arrowSize * Math.sin(arrowAngle - Math.PI/6)} L ${toX - arrowSize * Math.cos(arrowAngle + Math.PI/6)} ${toY - arrowSize * Math.sin(arrowAngle + Math.PI/6)} Z`;
     } else if (type === '<') {
       // Many-to-one: arrow at 'from' side
-      path += ` M ${fromX} ${fromY} L ${fromX + arrowSize * Math.cos(angle - Math.PI/6 + Math.PI)} ${fromY + arrowSize * Math.sin(angle - Math.PI/6 + Math.PI)} L ${fromX + arrowSize * Math.cos(angle + Math.PI/6 + Math.PI)} ${fromY + arrowSize * Math.sin(angle + Math.PI/6 + Math.PI)} Z`;
+      const fromArrowAngle = arrowAngle + Math.PI;
+      path += ` M ${fromX} ${fromY} L ${fromX + arrowSize * Math.cos(fromArrowAngle - Math.PI/6)} ${fromY + arrowSize * Math.sin(fromArrowAngle - Math.PI/6)} L ${fromX + arrowSize * Math.cos(fromArrowAngle + Math.PI/6)} ${fromY + arrowSize * Math.sin(fromArrowAngle + Math.PI/6)} Z`;
     } else if (type === '<>') {
       // Many-to-many: arrows at both sides
-      path += ` M ${arrowX} ${arrowY} L ${arrowX - arrowSize * Math.cos(angle - Math.PI/6)} ${arrowY - arrowSize * Math.sin(angle - Math.PI/6)} L ${arrowX - arrowSize * Math.cos(angle + Math.PI/6)} ${arrowY - arrowSize * Math.sin(angle + Math.PI/6)} Z`;
-      path += ` M ${fromX} ${fromY} L ${fromX + arrowSize * Math.cos(angle - Math.PI/6 + Math.PI)} ${fromY + arrowSize * Math.sin(angle - Math.PI/6 + Math.PI)} L ${fromX + arrowSize * Math.cos(angle + Math.PI/6 + Math.PI)} ${fromY + arrowSize * Math.sin(angle + Math.PI/6 + Math.PI)} Z`;
+      path += ` M ${toX} ${toY} L ${toX - arrowSize * Math.cos(arrowAngle - Math.PI/6)} ${toY - arrowSize * Math.sin(arrowAngle - Math.PI/6)} L ${toX - arrowSize * Math.cos(arrowAngle + Math.PI/6)} ${toY - arrowSize * Math.sin(arrowAngle + Math.PI/6)} Z`;
+
+      const fromArrowAngle = arrowAngle + Math.PI;
+      path += ` M ${fromX} ${fromY} L ${fromX + arrowSize * Math.cos(fromArrowAngle - Math.PI/6)} ${fromY + arrowSize * Math.sin(fromArrowAngle - Math.PI/6)} L ${fromX + arrowSize * Math.cos(fromArrowAngle + Math.PI/6)} ${fromY + arrowSize * Math.sin(fromArrowAngle + Math.PI/6)} Z`;
     }
-    
+
     return path;
   };
-  
-  // Get color for relationship line based on type
+
+  // Get color based on relationship type
   const getRelationshipColor = (type: string) => {
     switch (type) {
-      case '>': return '#1890ff'; // One-to-many: blue
-      case '<': return '#52c41a'; // Many-to-one: green
-      case '-': return '#722ed1'; // One-to-one: purple
-      case '<>': return '#fa8c16'; // Many-to-many: orange
-      default: return '#666666'; // Default: gray
+      case 'one-to-one':
+        return '#4285f4';
+      case 'one-to-many':
+        return '#34a853';
+      case 'many-to-one':
+        return '#fbbc05';
+      case 'many-to-many':
+        return '#ea4335';
+      default:
+        return '#4285f4';
     }
   };
 
@@ -809,20 +967,20 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
   // Handle resizing
   const handleResizerMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
-    
+
     const containerRect = containerRef.current.getBoundingClientRect();
     const containerWidth = containerRect.width;
     const mouseX = e.clientX - containerRect.left;
-    
+
     // Calculate percentages
     const leftPercentage = (mouseX / containerWidth) * 100;
     const rightPercentage = 100 - leftPercentage;
-    
+
     // Set minimum sizes (20%)
     if (leftPercentage < 20 || rightPercentage < 20) return;
-    
+
     setPaneRatio(leftPercentage / 100);
-    
+
     // Refresh editor when resizing stops
     if (editorRef.current) {
       editorRef.current.layout();
@@ -833,7 +991,7 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
     setIsDragging(false);
     document.removeEventListener('mousemove', handleResizerMouseMove);
     document.removeEventListener('mouseup', handleResizerMouseUp);
-    
+
     // Refresh editor after resize
     if (editorRef.current) {
       editorRef.current.layout();
@@ -856,8 +1014,8 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
 
   // Hàm xử lý thay đổi màu bảng
   const handleTableColorChange = (tableName: string, color: string) => {
-    setTables(prevTables => 
-      prevTables.map(table => 
+    setTables(prevTables =>
+      prevTables.map(table =>
         table.name === tableName ? { ...table, color } : table
       )
     );
@@ -871,10 +1029,67 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
     setColorModalVisible(true);
   };
 
+  // Toggle editor visibility
+  const toggleEditor = () => {
+    // Toggle editor visibility state
+    setIsEditorVisible(!isEditorVisible);
+
+    // Adjust pane ratio with smooth transition
+    if (isEditorVisible) {
+      // If currently visible -> hide
+      setPaneRatio(0.01);
+    } else {
+      // If currently hidden -> show
+      setPaneRatio(0.5);
+    }
+
+    // Refresh editor layout after animation completes
+    if (editorRef.current) {
+      setTimeout(() => {
+        editorRef.current?.layout();
+      }, 300);
+    }
+  };
+
+  // Fit diagram to view when tables are loaded
+  useEffect(() => {
+    if (tables.length > 0) {
+      // Add a small delay to ensure the diagram is rendered
+      const timer = setTimeout(() => {
+        fitToView();
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [tables.length, showDiagramOnly]);
+
+  // Expose zoom methods via ref
+  React.useImperativeHandle(ref, () => ({
+    zoomIn: () => {
+      zoomIn();
+    },
+    zoomOut: () => {
+      zoomOut();
+    },
+    fitToView: () => {
+      fitToView();
+    }
+  }));
+
+  // Return the JSX element
   return (
     <EditorContainer style={{ height }}>
       <EditorPane ref={containerRef}>
-        <CodeEditorPane width={`${paneRatio * 100}%`}>
+        {!showDiagramOnly && (
+          <>
+            <CodeEditorPane
+              width={`${paneRatio * 100}%`}
+              style={{
+                opacity: isEditorVisible ? 1 : 0,
+                transform: isEditorVisible ? 'translateX(0) scaleX(1)' : 'translateX(-50px) scaleX(0.9)',
+                pointerEvents: isEditorVisible ? 'auto' : 'none'
+              }}
+            >
           <Editor
             height="100%"
             language="dbml"
@@ -892,11 +1107,26 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
             Ln {cursorPosition.line}, Col {cursorPosition.column}
           </StatusBar>
         </CodeEditorPane>
-        <Resizer 
+        <Resizer
           ref={resizerRef}
           onMouseDown={handleMouseDown}
-        />
-        <DiagramPane width={`${(1 - paneRatio) * 100}%`}>
+              style={{ display: isEditorVisible ? 'flex' : 'block', width: isEditorVisible ? '10px' : '4px' }}
+            >
+              <ToggleButton onClick={(e) => {
+                e.stopPropagation(); // Ngăn không cho sự kiện click lan sang resizer
+                toggleEditor();
+              }}
+              style={{
+                transform: `rotate(${isEditorVisible ? 0 : 180}deg)`,
+                transition: 'transform 0.3s ease'
+              }}
+              >
+                {isEditorVisible ? '◀' : '▶'}
+              </ToggleButton>
+            </Resizer>
+          </>
+        )}
+        <DiagramPane width={showDiagramOnly ? '100%' : (isEditorVisible ? `${(1 - paneRatio) * 100}%` : '100%')}>
           <DiagramContainer ref={diagramRef}>
             <DiagramCanvas scale={scale}>
               {/* Relationship lines */}
@@ -904,37 +1134,37 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                 {relationships.map((rel, index) => {
                   const coords = getRelationshipCoordinates(rel);
                   if (!coords) return null;
-                  
+
                   const path = getArrowPath(coords, rel.type);
                   const color = getRelationshipColor(rel.type);
-                  
+
                   return (
                     <g key={`rel-${index}`}>
-                      <path 
-                        d={path} 
-                        stroke={color} 
-                        strokeWidth="2" 
-                        fill="none" 
+                      <path
+                        d={path}
+                        stroke={color}
+                        strokeWidth="2"
+                        fill="none"
                         strokeDasharray={rel.type === '-' ? '5,3' : undefined}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
-                      <path 
-                        d={path} 
-                        stroke="transparent" 
-                        strokeWidth="10" 
-                        fill="none" 
+                      <path
+                        d={path}
+                        stroke="transparent"
+                        strokeWidth="10"
+                        fill="none"
                       />
                     </g>
                   );
                 })}
               </RelationshipLine>
-              
+
               {/* Tables */}
               {tables.map((table, tableIndex) => (
-                <TableCard 
-                  key={tableIndex} 
-                  x={table.x} 
+                <TableCard
+                  key={tableIndex}
+                  x={table.x}
                   y={table.y}
                   onMouseDown={(e) => {
                     // Chỉ xử lý kéo thả khi click vào bảng, không phải vào nút menu
@@ -971,8 +1201,8 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                     </TableHeader>
                     <TableContent>
                       {table.fields.map((field, fieldIndex) => (
-                        <Tooltip 
-                          key={fieldIndex} 
+                        <Tooltip
+                          key={fieldIndex}
                           title={field.note || `${field.name}: ${field.type}`}
                           placement="right"
                         >
@@ -991,12 +1221,12 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
               ))}
             </DiagramCanvas>
           </DiagramContainer>
-          
+
           {/* MiniMap */}
           <MiniMap>
             <MiniMapContent>
               {tables.map((table, tableIndex) => (
-                <div 
+                <div
                   key={`mini-${tableIndex}`}
                   style={{
                     position: 'absolute',
@@ -1009,7 +1239,7 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
                   }}
                 />
               ))}
-              <ViewportIndicator 
+              <ViewportIndicator
                 x={viewportPos.x}
                 y={viewportPos.y}
                 width={280}
@@ -1017,14 +1247,14 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
               />
             </MiniMapContent>
           </MiniMap>
-          
+
           {/* Zoom controls */}
           <ZoomControls>
             <Button icon={<ZoomInOutlined />} onClick={zoomIn} title="Zoom in"/>
             <Button icon={<ZoomOutOutlined />} onClick={zoomOut} title="Zoom out"/>
             <Button icon={<FullscreenOutlined />} onClick={fitToView} title="Fit to view" />
-            <Button 
-              onClick={toggleLineStyle} 
+            <Button
+              onClick={toggleLineStyle}
               title="Thay đổi kiểu đường nối"
               icon={<span style={{ fontSize: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{getLineStyleLabel()}</span>}
             />
@@ -1061,6 +1291,6 @@ export const DbmlEditor: React.FC<DbmlEditorProps> = ({
       </Modal>
     </EditorContainer>
   );
-};
+});
 
-export default DbmlEditor; 
+export default DbmlEditor;
