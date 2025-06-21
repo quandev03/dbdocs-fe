@@ -12,8 +12,10 @@ RUN yarn install
 # Copy the rest of the project files
 COPY . .
 
+RUN npx nx reset
+
 # Build the project
-RUN yarn build:main
+RUN npx nx run main-app:build --verbose
 
 # -------- PRODUCTION STAGE --------
 FROM nginx:alpine
