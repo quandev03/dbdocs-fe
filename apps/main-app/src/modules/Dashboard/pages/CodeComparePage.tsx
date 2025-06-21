@@ -156,7 +156,7 @@ const CodeComparePage: React.FC = () => {
   const [selectedToVersion, setSelectedToVersion] = useState<string>('');
   const [diffChanges, setDiffChanges] = useState<DiffChange | null>(null);
   const [changeSummaryLoading, setChangeSummaryLoading] = useState(false);
-  
+
   // DDL generation states
   const [ddlModalVisible, setDdlModalVisible] = useState(false);
   const [selectedDbType, setSelectedDbType] = useState<number>(1); // Default: MySQL
@@ -171,15 +171,15 @@ const CodeComparePage: React.FC = () => {
       try {
         const versionsData = await getProjectVersions(projectId!);
         setVersions(versionsData);
-        
+
         // Set default selections to the two most recent versions if available
         if (versionsData.length >= 2) {
           setSelectedToVersion(versionsData[0].id);
           setSelectedFromVersion(versionsData[1].id);
-          
+
           setCurrentVersion(versionsData[0]);
           setPreviousVersion(versionsData[1]);
-          
+
           setNewContent(versionsData[0].content || '');
           setOldContent(versionsData[1].content || '');
         } else if (versionsData.length === 1) {
@@ -194,7 +194,7 @@ const CodeComparePage: React.FC = () => {
         setLoading(false);
       }
     };
-    
+
     fetchVersions();
   }, [projectId]);
 
@@ -203,20 +203,20 @@ const CodeComparePage: React.FC = () => {
     if (!fromVersionId || !toVersionId || fromVersionId === toVersionId) {
       return;
     }
-    
+
     setChangeSummaryLoading(true);
-    
+
     try {
       const fromVersion = versions.find(v => v.id === fromVersionId);
       const toVersion = versions.find(v => v.id === toVersionId);
-      
+
       if (fromVersion && toVersion) {
         setPreviousVersion(fromVersion);
         setCurrentVersion(toVersion);
-        
+
         setOldContent(fromVersion.content || '');
         setNewContent(toVersion.content || '');
-        
+
         // Fetch detailed comparison from API
         await fetchComparisonDetails(projectId!, fromVersion.codeVersion, toVersion.codeVersion);
       }
@@ -227,14 +227,14 @@ const CodeComparePage: React.FC = () => {
       setChangeSummaryLoading(false);
     }
   };
-  
+
   // Fetch comparison details from API
   const fetchComparisonDetails = async (projectId: string, beforeVersion: number, currentVersion: number) => {
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await axios.get(
-        `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/compare`, 
+        `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/compare`,
         {
           params: {
             projectId,
@@ -247,7 +247,7 @@ const CodeComparePage: React.FC = () => {
           }
         }
       );
-      
+
       if (response.data) {
         setDiffChanges(response.data);
       }
@@ -255,7 +255,7 @@ const CodeComparePage: React.FC = () => {
       console.error('Error fetching comparison details:', error);
     }
   };
-  
+
   // Calculate changes for summary display
   const changeSummary = useMemo(() => {
     if (currentVersion && !changeSummaryLoading) {
@@ -308,7 +308,7 @@ const CodeComparePage: React.FC = () => {
       }
 
       const token = localStorage.getItem('token');
-      
+
       const response = await axios.post(
         `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/generate-ddl`,
         {
@@ -394,7 +394,7 @@ const CodeComparePage: React.FC = () => {
     <div style={{ padding: 24, minHeight: '100vh', background: '#fafbfc' }}>
       <Button onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>Back</Button>
       <Title level={3} style={{ marginBottom: 16 }}>Code Comparison</Title>
-      
+
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Space direction="vertical" style={{ width: '100%' }}>
@@ -434,9 +434,9 @@ const CodeComparePage: React.FC = () => {
         </Col>
       </Row>
 
-      <Button 
-        type="primary" 
-        icon={<CodeOutlined />} 
+      <Button
+        type="primary"
+        icon={<CodeOutlined />}
         style={{ marginBottom: 24 }}
         onClick={handleCreateDdlClick}
         disabled={!selectedFromVersion || !selectedToVersion}
@@ -456,8 +456,8 @@ const CodeComparePage: React.FC = () => {
         {!showScriptResult ? (
           <div>
             <p>Select database type for the DDL update script:</p>
-            <Radio.Group 
-              value={selectedDbType} 
+            <Radio.Group
+              value={selectedDbType}
               onChange={e => handleDbTypeChange(e.target.value)}
               style={{ marginBottom: 24 }}
             >
@@ -469,14 +469,14 @@ const CodeComparePage: React.FC = () => {
                 <Radio value={5}>SQL Server</Radio>
               </Space>
             </Radio.Group>
-            
+
             <div style={{ textAlign: 'right' }}>
               <Button onClick={() => setDdlModalVisible(false)} style={{ marginRight: 16 }}>
                 Cancel
               </Button>
-              <Button 
-                type="primary" 
-                onClick={generateDdlScript} 
+              <Button
+                type="primary"
+                onClick={generateDdlScript}
                 loading={generatingScript}
               >
                 Generate
@@ -501,9 +501,9 @@ const CodeComparePage: React.FC = () => {
               />
             </div>
             <div style={{ textAlign: 'right' }}>
-              <Button 
-                icon={<CopyOutlined />} 
-                onClick={copyScriptToClipboard} 
+              <Button
+                icon={<CopyOutlined />}
+                onClick={copyScriptToClipboard}
                 style={{ marginRight: 8 }}
               >
                 Copy
@@ -519,7 +519,7 @@ const CodeComparePage: React.FC = () => {
           </div>
         )}
       </Modal>
-      
+
       <Row gutter={[24, 24]}>
         {/* Left column for Summary */}
         <Col span={6}>
@@ -535,11 +535,11 @@ const CodeComparePage: React.FC = () => {
                   <Text strong>Total Changes: </Text>
                   <Text>{diffChanges.totalChanges}</Text>
                 </div>
-                
-                {diffChanges.addedTables.length > 0 && (
+
+                {diffChanges.addedTables?.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
                     <Text strong style={{ color: '#52c41a', display: 'block', marginBottom: 4 }}>
-                      Added Tables ({diffChanges.addedTables.length}):
+                      Added Tables ({diffChanges.addedTables?.length}):
                     </Text>
                     {diffChanges.addedTables.map((table, i) => (
                       <div key={i} style={{ marginLeft: 8, display: 'flex', alignItems: 'center' }}>
@@ -549,11 +549,11 @@ const CodeComparePage: React.FC = () => {
                     ))}
                   </div>
                 )}
-                
-                {diffChanges.removedTables.length > 0 && (
+
+                {diffChanges.removedTables?.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
                     <Text strong style={{ color: '#f5222d', display: 'block', marginBottom: 4 }}>
-                      Removed Tables ({diffChanges.removedTables.length}):
+                      Removed Tables ({diffChanges.removedTables?.length}):
                     </Text>
                     {diffChanges.removedTables.map((table, i) => (
                       <div key={i} style={{ marginLeft: 8, display: 'flex', alignItems: 'center' }}>
@@ -563,13 +563,13 @@ const CodeComparePage: React.FC = () => {
                     ))}
                   </div>
                 )}
-                
-                {Object.keys(diffChanges.tableChanges).length > 0 && (
+
+                {Object.keys(diffChanges.tableChanges ?? {}).length > 0 && (
                   <div>
                     <Text strong style={{ color: '#faad14', display: 'block', marginBottom: 4 }}>
-                      Modified Tables ({Object.keys(diffChanges.tableChanges).length}):
+                      Modified Tables ({Object.keys(diffChanges.tableChanges ?? {}).length}):
                     </Text>
-                    {Object.entries(diffChanges.tableChanges).map(([table, changes], i) => (
+                    {Object.entries(diffChanges.tableChanges ?? {}).map(([table, changes], i) => (
                       <div key={i} style={{ marginLeft: 8, marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <ExclamationCircleOutlined style={{ color: '#faad14', marginRight: 8 }} />
