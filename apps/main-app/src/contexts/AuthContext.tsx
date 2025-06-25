@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { authService } from '../services';
+import authService from '../services/authService';
 
 // Auth context state type
 interface AuthState {
@@ -33,18 +33,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false
   });
 
-  // Fetch user info from API
-  const fetchUserInfo = async () => {
-    try {
-      // Get user info from API
-      const userInfo = await authService.getCurrentUser();
-      return userInfo;
-    } catch (error) {
-      console.error('Failed to fetch user info:', error);
-      return null;
-    }
-  };
-
   // Check authentication status when component mounts
   useEffect(() => {
     const checkAuth = async () => {
@@ -52,8 +40,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const isAuthenticated = authService.isAuthenticated();
         
         if (isAuthenticated) {
-          // Fetch user info from API
-          const userInfo = await fetchUserInfo();
+          // Try to get user from localStorage first
+          let userInfo = authService.getCurrentUser();
+          
+          // If no user in localStorage, fetch from API
+          if (!userInfo) {
+            userInfo = await authService.fetchUserInfo();
+          }
           
           setState({
             user: userInfo,
@@ -88,36 +81,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      let result;
-      
+      // Use the updated AuthService methods
       if (provider === 'google') {
-        result = await authService.loginWithGoogle();
+        authService.loginWithGoogle();
       } else {
-        result = await authService.loginWithGithub();
+        authService.loginWithGitHub();
       }
       
-      if (result.isAuthenticated) {
-        // Fetch user info from API
-        const userInfo = await fetchUserInfo();
-        
-        setState({
-          user: userInfo,
-          loading: false,
-          error: null,
-          isAuthenticated: true
-        });
-        
-        return { success: true };
-      } else {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Authentication failed',
-          isAuthenticated: false
-        }));
-        
-        return { success: false, error: 'Authentication failed' };
-      }
+      // The actual login completion will be handled by AuthCallback component
+      return { success: true };
     } catch (err: any) {
       const errorMessage = err.message || 'Login failed';
       
@@ -137,8 +109,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      // Clear tokens and user data
-      authService.clearToken();
+      // Clear tokens and user data using AuthService
+      authService.logout();
       
       setState({
         user: null,
@@ -163,24 +135,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Refresh user info
   const refreshUserInfo = async () => {
-    if (!state.isAuthenticated) {
+    if (!authService.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
     
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      // Fetch user info from API
-      const userInfo = await fetchUserInfo();
+      // Fetch user info from API using AuthService
+      const userInfo = await authService.fetchUserInfo();
       
-      setState(prev => ({
-        ...prev,
-        user: userInfo,
-        loading: false,
-        error: null
-      }));
-      
-      return { success: true };
+      if (userInfo) {
+        setState({
+          user: userInfo,
+          loading: false,
+          error: null,
+          isAuthenticated: true
+        });
+        
+        return { success: true };
+      } else {
+        throw new Error('Failed to fetch user info');
+      }
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to refresh user info';
       
@@ -199,7 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     ...state,
     login,
     logout,
-    refreshUserInfo
+    refreshUserInfo,
   };
 
   return (

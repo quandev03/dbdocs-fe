@@ -1,7 +1,7 @@
 import { ItemType, MenuItemType } from 'antd/es/menu/interface';
 import { compact } from 'lodash';
 import { safeApiClient } from './axios';
-import { authService } from './authService';
+import authService from './authService';
 import { userService } from './userService';
 import { apiService } from './apiService';
 import { menuItems } from '../routers/menu';
