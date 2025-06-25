@@ -1,4 +1,4 @@
-import { authService } from './authService';
+import authService from './authService';
 import { API_CONFIG } from '../config';
 
 const API_BASE_URL = API_CONFIG.BASE_URL;
@@ -16,15 +16,15 @@ export const apiService = {
       throw new Error('User is not authenticated');
     }
     
-    const token = authService.getToken();
+    const authHeader = authService.getAuthorizationHeader();
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers as Record<string, string>
     };
     
     // Add token to header if available
-    if (token) {
-      headers['Authorization'] = `${token.tokenType} ${token.accessToken}`;
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
     }
     
     // Log request info for debugging
@@ -48,7 +48,7 @@ export const apiService = {
       if (!response.ok) {
         // Handle expired token
         if (response.status === 401) {
-          authService.clearToken();
+          authService.logout();
           throw new Error('Session expired. Please login again.');
         }
         

@@ -1,9 +1,11 @@
 import { createBrowserRouter } from 'react-router-dom';
-import Login from './modules/Layouts/pages/Auth/Login';
+import Login from './modules/Auth/Login';
 import HomePage from './modules/Layouts/pages/Dashboard/HomePage';
 import SharePage from './modules/Layouts/pages/Dashboard/SharePage';
 import AuthRedirect from './components/AuthRedirect';
 import ProtectedRoute from './components/ProtectedRoute';
+import AuthCallback from './components/auth/AuthCallback';
+import Dashboard from './pages/Dashboard';
 import DocumentationPage from './modules/Dashboard/pages/DocumentationPage';
 import { DbmlEditorPage } from './modules/Dashboard/pages/DbmlEditorPage';
 import NotFound from './modules/Errors/NotFound';
@@ -15,12 +17,28 @@ export const router = createBrowserRouter([
     path: '/login',
     element: (
       <AuthRedirect
-        authenticatedRedirect="/"
+        authenticatedRedirect="/dashboard"
         unauthenticatedRedirect="/login"
         requireAuth={false}
       >
         <Login />
       </AuthRedirect>
+    ),
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/auth/callback',
+    element: <AuthCallback />,
+    errorElement: <NotFound />,
+  },
+  {
+    path: '/dashboard',
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </ErrorBoundary>
     ),
     errorElement: <NotFound />,
   },

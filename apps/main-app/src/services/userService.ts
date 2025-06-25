@@ -1,4 +1,4 @@
-import { authService } from './authService';
+import authService from './authService';
 import { API_CONFIG } from '../config';
 
 const API_BASE_URL = API_CONFIG.BASE_URL;
@@ -100,7 +100,7 @@ export const userService = {
       console.error('Error during logout:', error);
     } finally {
       // Clear all auth data
-      authService.clearToken();
+      authService.logout();
       userService.clearUserInfo();
     }
   },
@@ -137,33 +137,18 @@ export const userService = {
    */
   getUserById: async (userId: string): Promise<{ userId: string; fullName: string; email: string; avatarUrl: string; provider: number } | null> => {
     try {
-      // Always try to get a token, even if authService.hasToken() returns false
-      let token = authService.getToken();
-
-      // If no token from authService, try to get from localStorage directly as fallback
-      if (!token) {
-        const rawToken = localStorage.getItem('auth_token');
-        if (rawToken) {
-          try {
-            // Parse the token from localStorage if it exists
-            const parsedToken = JSON.parse(rawToken);
-            token = parsedToken;
-            console.log('Using token from localStorage');
-          } catch (e) {
-            console.error('Failed to parse token from localStorage:', e);
-          }
-        }
-      }
+      // Get authorization header from authService
+      const authHeader = authService.getAuthorizationHeader() || '';
 
       console.log(`Fetching user with ID: ${userId}`);
       console.log(`Request URL: ${API_BASE_URL}/api/v1/users/${userId}`);
-      console.log('Auth token available:', !!token);
+      console.log('Auth header available:', !!authHeader);
 
       const requestOptions = {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': token ? `Bearer ${token.accessToken}` : '',
+          'Authorization': authHeader,
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         },
@@ -174,7 +159,7 @@ export const userService = {
         ...requestOptions,
         headers: {
           ...requestOptions.headers,
-          'Authorization': token ? 'Bearer [TOKEN_HIDDEN]' : ''
+          'Authorization': authHeader ? '[HIDDEN]' : ''
         }
       }, null, 2));
 
@@ -234,33 +219,18 @@ export const userService = {
    */
   getSystemUser: async (): Promise<{ userId: string; fullName: string; email: string; avatarUrl: string; provider: number } | null> => {
     try {
-      // Always try to get a token, even if authService.hasToken() returns false
-      let token = authService.getToken();
-
-      // If no token from authService, try to get from localStorage directly as fallback
-      if (!token) {
-        const rawToken = localStorage.getItem('auth_token');
-        if (rawToken) {
-          try {
-            // Parse the token from localStorage if it exists
-            const parsedToken = JSON.parse(rawToken);
-            token = parsedToken;
-            console.log('Using token from localStorage for system user');
-          } catch (e) {
-            console.error('Failed to parse token from localStorage:', e);
-          }
-        }
-      }
+      // Get authorization header from authService
+      const authHeader = authService.getAuthorizationHeader() || '';
 
       console.log('Fetching system user');
       console.log(`Request URL: ${API_BASE_URL}/api/v1/users/system`);
-      console.log('Auth token available:', !!token);
+      console.log('Auth header available:', !!authHeader);
 
       const requestOptions = {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': token ? `Bearer ${token.accessToken}` : '',
+          'Authorization': authHeader,
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         },
@@ -271,7 +241,7 @@ export const userService = {
         ...requestOptions,
         headers: {
           ...requestOptions.headers,
-          'Authorization': token ? 'Bearer [TOKEN_HIDDEN]' : ''
+          'Authorization': authHeader ? '[HIDDEN]' : ''
         }
       }, null, 2));
 

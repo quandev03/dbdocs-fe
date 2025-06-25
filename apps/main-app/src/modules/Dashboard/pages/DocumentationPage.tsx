@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { authService } from '../../../services/authService';
+import authService from '../../../services/authService';
 import {
   Layout,
   Tabs,
@@ -230,19 +230,15 @@ const DocumentationPage: React.FC = () => {
     const fetchCurrentUser = async () => {
       try {
         console.log("get data user");
-        const currentUser: {
-          email: string;
-          fullName: string;
-          avatarUrl: string;
-        } | null = await authService.getCurrentUser();
+        const currentUser = await authService.getCurrentUser();
 
         console.log("currentUser", currentUser);
 
         // Chỉ cập nhật state nếu component vẫn còn được mount
         if (isMounted) {
           setCreatorInfo({
-            fullName: currentUser?.fullName || currentUser?.email || 'Unknown User',
-            avatarUrl: currentUser?.avatarUrl || '',
+            fullName: currentUser?.name || currentUser?.email || 'Unknown User',
+            avatarUrl: currentUser?.pictureUrl || '',
           });
         }
       } catch (error) {
