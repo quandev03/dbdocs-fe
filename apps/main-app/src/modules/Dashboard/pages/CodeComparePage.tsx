@@ -232,7 +232,7 @@ const CodeComparePage: React.FC = () => {
   // Fetch comparison details from API
   const fetchComparisonDetails = async (projectId: string, beforeVersion: number, currentVersion: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('dbdocs_token');
 
       const response = await axios.get(
         `${API_CONFIG.BASE_URL}/api/v1/versions/compare`,
@@ -308,7 +308,7 @@ const CodeComparePage: React.FC = () => {
         throw new Error('Selected versions not found');
       }
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('dbdocs_token');
 
       const response = await axios.post(
         `${API_CONFIG.BASE_URL}/api/v1/versions/generate-ddl`,

@@ -43,7 +43,7 @@ export const AUTH_CONFIG = {
 
   // Token storage keys
   STORAGE_KEYS: {
-    TOKEN: 'token',
+    TOKEN: 'dbdocs_token',
     TOKEN_TYPE: 'tokenType',
     EXPIRES_IN: 'expiresIn',
     EXPIRY_TIME: 'tokenExpiry',
