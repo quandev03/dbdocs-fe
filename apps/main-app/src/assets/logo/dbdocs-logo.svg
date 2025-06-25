@@ -1,0 +1,18 @@
+<svg width="200" height="120" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+
+  <!-- Database icon -->
+  <ellipse cx="60" cy="30" rx="30" ry="10" fill="#4285F4"/>
+  <rect x="30" y="30" width="60" height="50" fill="#4285F4"/>
+  <ellipse cx="60" cy="80" rx="30" ry="10" fill="#4285F4" opacity="0.8"/>
+  
+  <!-- Document icon -->
+  <rect x="95" y="25" width="60" height="70" fill="#DB4437"/>
+  <path d="M140 25 L155 40 L140 40 Z" fill="#b03126"/>
+  <rect x="105" y="45" width="40" height="5" fill="#FFFFFF" opacity="0.8"/>
+  <rect x="105" y="55" width="40" height="5" fill="#FFFFFF" opacity="0.8"/>
+  <rect x="105" y="65" width="30" height="5" fill="#FFFFFF" opacity="0.8"/>
+  
+  <!-- Text -->
+  <text x="50%" y="110" font-size="30" font-weight="bold" fill="#333333" text-anchor="middle">dbdocs</text>
+</svg> 

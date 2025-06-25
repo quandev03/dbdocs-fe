@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Logo from '../components/common/Logo';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
-              <DatabaseOutlined className="text-2xl text-blue-600" />
+              <Logo variant="icon" width={40} height={32} />
               <h1 className="text-xl font-semibold text-gray-900">DBDocs Dashboard</h1>
             </div>
             <Button 

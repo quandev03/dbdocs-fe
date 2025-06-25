@@ -5,8 +5,10 @@ import { Editor, DiffEditor } from '@monaco-editor/react';
 import * as diff from 'diff';
 import { getProjectVersions, VersionInfo } from '../services/changelog.service';
 import axios from 'axios';
-import { DownloadOutlined, CopyOutlined, CodeOutlined } from '@ant-design/icons';
+import { DownloadOutlined, CopyOutlined, CodeOutlined, ArrowLeftOutlined, TableOutlined, FieldNumberOutlined } from '@ant-design/icons';
 import { API_CONFIG } from '../../../config';
+import Logo from '../../../components/common/Logo';
+import './CodeComparePage.css';
 
 // Icons for the summary
 import { PlusCircleOutlined, MinusCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
@@ -41,6 +43,148 @@ interface DiffChange {
     }>;
   };
 }
+
+interface TableChange {
+  tableName: string;
+  changeType: 'added' | 'removed' | 'modified';
+  columns?: ColumnChange[];
+}
+
+interface ColumnChange {
+  columnName: string;
+  changeType: 'added' | 'removed' | 'modified';
+  oldType?: string;
+  newType?: string;
+  details?: string;
+}
+
+interface DetailedChanges {
+  tables: TableChange[];
+  summary: {
+    tablesAdded: number;
+    tablesRemoved: number;
+    tablesModified: number;
+    columnsAdded: number;
+    columnsRemoved: number;
+    columnsModified: number;
+  };
+}
+
+// =========================================================
+// Function to analyze detailed changes
+// =========================================================
+const analyzeDetailedChanges = (oldContent: string, newContent: string): DetailedChanges => {
+  const tableChanges: TableChange[] = [];
+  const summary = {
+    tablesAdded: 0,
+    tablesRemoved: 0,
+    tablesModified: 0,
+    columnsAdded: 0,
+    columnsRemoved: 0,
+    columnsModified: 0,
+  };
+
+  // Parse tables from both versions
+  const parseTablesFromContent = (content: string) => {
+    const tables = new Map<string, { fields: string[], rawContent: string }>();
+    const tableRegex = /Table\s+([\w\.]+)\s*{([^}]*)}/g;
+    let match;
+
+    while ((match = tableRegex.exec(content)) !== null) {
+      const tableName = match[1];
+      const tableContent = match[2];
+      
+      // Extract fields
+      const fieldLines = tableContent.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('//') && !line.includes('Indexes'));
+      
+      const fields = fieldLines.map(line => {
+        const parts = line.split(/\s+/);
+        return parts.length >= 2 ? `${parts[0]} ${parts[1]}` : line;
+      });
+
+      tables.set(tableName, { fields, rawContent: tableContent });
+    }
+
+    return tables;
+  };
+
+  const oldTables = parseTablesFromContent(oldContent);
+  const newTables = parseTablesFromContent(newContent);
+
+  // Get all table names
+  const allTableNames = new Set([...oldTables.keys(), ...newTables.keys()]);
+
+  allTableNames.forEach(tableName => {
+    const oldTable = oldTables.get(tableName);
+    const newTable = newTables.get(tableName);
+
+    if (oldTable && !newTable) {
+      // Table removed
+      tableChanges.push({
+        tableName,
+        changeType: 'removed'
+      });
+      summary.tablesRemoved++;
+    } else if (!oldTable && newTable) {
+      // Table added
+      tableChanges.push({
+        tableName,
+        changeType: 'added',
+        columns: newTable.fields.map(field => ({
+          columnName: field.split(' ')[0],
+          changeType: 'added' as const,
+          newType: field.split(' ')[1] || 'unknown'
+        }))
+      });
+      summary.tablesAdded++;
+      summary.columnsAdded += newTable.fields.length;
+    } else if (oldTable && newTable) {
+      // Table exists in both - check for modifications
+      const oldFields = new Set(oldTable.fields);
+      const newFields = new Set(newTable.fields);
+      const columnChanges: ColumnChange[] = [];
+
+      // Find added columns
+      newTable.fields.forEach(field => {
+        if (!oldFields.has(field)) {
+          const [columnName, columnType] = field.split(' ');
+          columnChanges.push({
+            columnName,
+            changeType: 'added',
+            newType: columnType
+          });
+          summary.columnsAdded++;
+        }
+      });
+
+      // Find removed columns
+      oldTable.fields.forEach(field => {
+        if (!newFields.has(field)) {
+          const [columnName, columnType] = field.split(' ');
+          columnChanges.push({
+            columnName,
+            changeType: 'removed',
+            oldType: columnType
+          });
+          summary.columnsRemoved++;
+        }
+      });
+
+      if (columnChanges.length > 0) {
+        tableChanges.push({
+          tableName,
+          changeType: 'modified',
+          columns: columnChanges
+        });
+        summary.tablesModified++;
+      }
+    }
+  });
+
+  return { tables: tableChanges, summary };
+};
 
 // =========================================================
 // Function to analyze changes and create summary
@@ -145,7 +289,7 @@ const analyzeChangesForSummary = (oldContent: string, newContent: string): Summa
 };
 
 const CodeComparePage: React.FC = () => {
-  const { projectId } = useParams();
+  const { projectId, versionId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [versions, setVersions] = useState<VersionInfo[]>([]);
@@ -157,6 +301,7 @@ const CodeComparePage: React.FC = () => {
   const [selectedToVersion, setSelectedToVersion] = useState<string>('');
   const [diffChanges, setDiffChanges] = useState<DiffChange | null>(null);
   const [changeSummaryLoading, setChangeSummaryLoading] = useState(false);
+  const [detailedChanges, setDetailedChanges] = useState<DetailedChanges | null>(null);
 
   // DDL generation states
   const [ddlModalVisible, setDdlModalVisible] = useState(false);
@@ -173,20 +318,61 @@ const CodeComparePage: React.FC = () => {
         const versionsData = await getProjectVersions(projectId!);
         setVersions(versionsData);
 
-        // Set default selections to the two most recent versions if available
-        if (versionsData.length >= 2) {
-          setSelectedToVersion(versionsData[0].id);
-          setSelectedFromVersion(versionsData[1].id);
+        if (versionId) {
+          // If versionId is provided from URL (from "View code change" click)
+          const selectedVersion = versionsData.find(v => v.id === versionId);
+          if (selectedVersion) {
+            // Find the index of the selected version
+            const selectedIndex = versionsData.findIndex(v => v.id === versionId);
+            
+            // Set the selected version as "To Version" (current)
+            setSelectedToVersion(selectedVersion.id);
+            setCurrentVersion(selectedVersion);
+            setNewContent(selectedVersion.content || '');
+            
+            // Set the previous version as "From Version" (if available)
+            if (selectedIndex < versionsData.length - 1) {
+              const previousVersion = versionsData[selectedIndex + 1];
+              setSelectedFromVersion(previousVersion.id);
+              setPreviousVersion(previousVersion);
+              setOldContent(previousVersion.content || '');
+              
+              // Calculate detailed changes
+              const detailed = analyzeDetailedChanges(previousVersion.content || '', selectedVersion.content || '');
+              setDetailedChanges(detailed);
+              
+              // Fetch detailed comparison from API
+              await fetchComparisonDetails(projectId!, previousVersion.codeVersion, selectedVersion.codeVersion);
+            } else {
+              // If this is the oldest version, compare with empty
+              setSelectedFromVersion('');
+              setPreviousVersion(null);
+              setOldContent('');
+            }
+          }
+        } else {
+          // Default behavior: Set to the two most recent versions if available
+          if (versionsData.length >= 2) {
+            setSelectedToVersion(versionsData[0].id);
+            setSelectedFromVersion(versionsData[1].id);
 
-          setCurrentVersion(versionsData[0]);
-          setPreviousVersion(versionsData[1]);
+            setCurrentVersion(versionsData[0]);
+            setPreviousVersion(versionsData[1]);
 
-          setNewContent(versionsData[0].content || '');
-          setOldContent(versionsData[1].content || '');
-        } else if (versionsData.length === 1) {
-          setSelectedToVersion(versionsData[0].id);
-          setCurrentVersion(versionsData[0]);
-          setNewContent(versionsData[0].content || '');
+            setNewContent(versionsData[0].content || '');
+            setOldContent(versionsData[1].content || '');
+            
+            // Calculate detailed changes
+            const detailed = analyzeDetailedChanges(versionsData[1].content || '', versionsData[0].content || '');
+            setDetailedChanges(detailed);
+            
+            // Fetch detailed comparison from API
+            await fetchComparisonDetails(projectId!, versionsData[1].codeVersion, versionsData[0].codeVersion);
+          } else if (versionsData.length === 1) {
+            setSelectedToVersion(versionsData[0].id);
+            setCurrentVersion(versionsData[0]);
+            setNewContent(versionsData[0].content || '');
+          }
         }
       } catch (error) {
         console.error('Error loading versions:', error);
@@ -197,29 +383,35 @@ const CodeComparePage: React.FC = () => {
     };
 
     fetchVersions();
-  }, [projectId]);
+  }, [projectId, versionId]);
 
   // Compare versions when selection changes
   const handleVersionChange = async (fromVersionId: string, toVersionId: string) => {
-    if (!fromVersionId || !toVersionId || fromVersionId === toVersionId) {
+    if (!toVersionId || fromVersionId === toVersionId) {
       return;
     }
 
     setChangeSummaryLoading(true);
 
     try {
-      const fromVersion = versions.find(v => v.id === fromVersionId);
+      const fromVersion = fromVersionId ? versions.find(v => v.id === fromVersionId) : null;
       const toVersion = versions.find(v => v.id === toVersionId);
 
-      if (fromVersion && toVersion) {
-        setPreviousVersion(fromVersion);
+      if (toVersion) {
+        setPreviousVersion(fromVersion || null);
         setCurrentVersion(toVersion);
 
-        setOldContent(fromVersion.content || '');
+        setOldContent(fromVersion?.content || '');
         setNewContent(toVersion.content || '');
 
-        // Fetch detailed comparison from API
-        await fetchComparisonDetails(projectId!, fromVersion.codeVersion, toVersion.codeVersion);
+        // Calculate detailed changes
+        const detailed = analyzeDetailedChanges(fromVersion?.content || '', toVersion.content || '');
+        setDetailedChanges(detailed);
+
+        // Fetch detailed comparison from API (only if we have a from version)
+        if (fromVersion) {
+          await fetchComparisonDetails(projectId!, fromVersion.codeVersion, toVersion.codeVersion);
+        }
       }
     } catch (error) {
       console.error('Error comparing versions:', error);
@@ -266,9 +458,10 @@ const CodeComparePage: React.FC = () => {
   }, [currentVersion, oldContent, newContent, changeSummaryLoading]);
 
   // Handle from version selection change
-  const handleFromVersionChange = (versionId: string) => {
-    setSelectedFromVersion(versionId);
-    handleVersionChange(versionId, selectedToVersion);
+  const handleFromVersionChange = (versionId: string | undefined) => {
+    const fromVersionId = versionId || '';
+    setSelectedFromVersion(fromVersionId);
+    handleVersionChange(fromVersionId, selectedToVersion);
   };
 
   // Handle to version selection change
@@ -392,58 +585,81 @@ const CodeComparePage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 24, minHeight: '100vh', background: '#fafbfc' }}>
-      <Button onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>Back</Button>
-      <Title level={3} style={{ marginBottom: 16 }}>Code Comparison</Title>
+    <div className="code-compare-page">
+      {/* Header with logo and navigation */}
+      <div className="code-compare-header">
+        <div className="code-compare-header-left">
+          <div className="code-compare-logo" onClick={() => navigate('/')}>
+            <Logo variant="icon" width={48} height={48} />
+          </div>
+          <Button 
+            className="code-compare-back-btn"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate(-1)}
+          >
+            Back
+          </Button>
+          <Title level={3} className="code-compare-title">Code Comparison</Title>
+        </div>
+      </div>
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={12}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text>From Version:</Text>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Select from version"
-              value={selectedFromVersion}
-              onChange={handleFromVersionChange}
-              loading={loading}
-            >
-              {versions.map(version => (
-                <Option key={version.id} value={version.id}>
-                  Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
-                </Option>
-              ))}
-            </Select>
-          </Space>
-        </Col>
-        <Col span={12}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text>To Version:</Text>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Select to version"
-              value={selectedToVersion}
-              onChange={handleToVersionChange}
-              loading={loading}
-            >
-              {versions.map(version => (
-                <Option key={version.id} value={version.id}>
-                  Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
-                </Option>
-              ))}
-            </Select>
-          </Space>
-        </Col>
-      </Row>
+      <div style={{ padding: '0 32px', paddingBottom: 32 }}>
 
-      <Button
-        type="primary"
-        icon={<CodeOutlined />}
-        style={{ marginBottom: 24 }}
-        onClick={handleCreateDdlClick}
-        disabled={!selectedFromVersion || !selectedToVersion}
-      >
-        Create DDL Update
-      </Button>
+        <div className="version-selector-container">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Text className="version-selector-label">From Version (Older):</Text>
+                <Select
+                  className="version-selector"
+                  style={{ width: '100%' }}
+                  placeholder="Select from version"
+                  value={selectedFromVersion}
+                  onChange={handleFromVersionChange}
+                  loading={loading}
+                  allowClear
+                >
+                  <Option value="">No version (compare with empty)</Option>
+                  {versions.map(version => (
+                    <Option key={version.id} value={version.id}>
+                      Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
+                    </Option>
+                  ))}
+                </Select>
+              </Space>
+            </Col>
+            <Col span={12}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Text className="version-selector-label">To Version (Newer):</Text>
+                <Select
+                  className="version-selector"
+                  style={{ width: '100%' }}
+                  placeholder="Select to version"
+                  value={selectedToVersion}
+                  onChange={handleToVersionChange}
+                  loading={loading}
+                >
+                  {versions.map(version => (
+                    <Option key={version.id} value={version.id}>
+                      Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
+                    </Option>
+                  ))}
+                </Select>
+              </Space>
+            </Col>
+          </Row>
+        </div>
+
+        <Button
+          type="primary"
+          icon={<CodeOutlined />}
+          className="action-button"
+          style={{ marginBottom: 24 }}
+          onClick={handleCreateDdlClick}
+          disabled={!selectedFromVersion || !selectedToVersion}
+        >
+          Create DDL Update
+        </Button>
 
       {/* DDL Database Selection Modal */}
       <Modal
@@ -497,7 +713,7 @@ const CodeComparePage: React.FC = () => {
                   minimap: { enabled: false },
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
-                  wordWrap: 'on'
+                  wordWrap: 'on' as const
                 }}
               />
             </div>
@@ -647,17 +863,87 @@ const CodeComparePage: React.FC = () => {
                 renderSideBySide: true,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
-                wordWrap: 'on',
+                wordWrap: 'on' as const,
                 contextmenu: false,
                 folding: false,
                 overviewRulerBorder: false,
                 hideCursorInOverviewRuler: true,
-                diffWordWrap: true,
               }}
             />
           </Card>
         </Col>
       </Row>
+
+      {/* Detailed Changes Section */}
+      {detailedChanges && detailedChanges.tables.length > 0 && (
+        <Card
+          className="detailed-changes"
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Text strong style={{ fontSize: 18 }}>Detailed Changes</Text>
+              <Space>
+                <Text type="secondary">
+                  <TableOutlined style={{ marginRight: 4 }} />
+                  Tables: +{detailedChanges.summary.tablesAdded} ~{detailedChanges.summary.tablesModified} -{detailedChanges.summary.tablesRemoved}
+                </Text>
+                <Text type="secondary">
+                  <FieldNumberOutlined style={{ marginRight: 4 }} />
+                  Columns: +{detailedChanges.summary.columnsAdded} -{detailedChanges.summary.columnsRemoved}
+                </Text>
+              </Space>
+            </div>
+          }
+          style={{ marginTop: 24 }}
+        >
+          <Collapse bordered={false} defaultActiveKey={detailedChanges.tables.map((_, i) => i.toString())}>
+            {detailedChanges.tables.map((table, index) => (
+              <Panel
+                header={
+                  <div className="table-change-header">
+                    <span className="table-change-icon">
+                      {table.changeType === 'added' && <PlusCircleOutlined style={{ color: '#059669' }} />}
+                      {table.changeType === 'removed' && <MinusCircleOutlined style={{ color: '#dc2626' }} />}
+                      {table.changeType === 'modified' && <ExclamationCircleOutlined style={{ color: '#d97706' }} />}
+                    </span>
+                    <span className="table-change-name">{table.tableName}</span>
+                    <span className={`table-change-type change-${table.changeType}`}>
+                      {table.changeType}
+                    </span>
+                  </div>
+                }
+                key={index.toString()}
+              >
+                <div className="table-change-item">
+                  {table.columns && table.columns.length > 0 ? (
+                    <div className="column-change-list">
+                      <Text strong style={{ marginBottom: 12, display: 'block' }}>
+                        Column Changes ({table.columns.length}):
+                      </Text>
+                      {table.columns.map((column, colIndex) => (
+                        <div key={colIndex} className="column-change-item">
+                          <span className="column-icon">
+                            {column.changeType === 'added' && <PlusCircleOutlined style={{ color: '#059669' }} />}
+                            {column.changeType === 'removed' && <MinusCircleOutlined style={{ color: '#dc2626' }} />}
+                            {column.changeType === 'modified' && <ExclamationCircleOutlined style={{ color: '#d97706' }} />}
+                          </span>
+                          <span className="column-name">{column.columnName}</span>
+                          <span className="column-type">
+                            {column.changeType === 'added' && column.newType}
+                            {column.changeType === 'removed' && column.oldType}
+                            {column.changeType === 'modified' && `${column.oldType} → ${column.newType}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Text type="secondary">No column changes detected.</Text>
+                  )}
+                </div>
+              </Panel>
+            ))}
+          </Collapse>
+        </Card>
+      )}
 
       {/* CSS customizations for Summary Card and Ant Design overrides */}
       <style>{`
@@ -681,6 +967,7 @@ const CodeComparePage: React.FC = () => {
             padding: 0px 0 !important;
         }
       `}</style>
+      </div>
     </div>
   );
 };

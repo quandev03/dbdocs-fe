@@ -2,26 +2,45 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: #f5f7fa;
 }
 
 .editor-header {
-  background: #fff;
-  padding: 0 24px;
+  background: #ffffff;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
   z-index: 10;
+  border-bottom: 1px solid #e8eef7;
+  height: 72px;
 }
 
 .editor-header-left {
   display: flex;
   align-items: center;
+  gap: 16px;
+}
+
+.editor-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.editor-logo:hover {
+  background-color: #e8eef7;
+  transform: scale(1.05);
 }
 
 .editor-header-right {
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .project-title {
@@ -29,25 +48,67 @@
   align-items: center;
 }
 
+.project-title h4 {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  font-size: 20px !important;
+}
+
 .editor-back-btn {
   font-weight: 500;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  height: 40px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.editor-back-btn:hover {
+  background-color: #e8eef7;
+  border-color: #4285f4;
+  color: #4285f4;
 }
 
 .editor-action-btn {
-  height: 36px;
+  height: 40px;
   display: flex;
   align-items: center;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+}
+
+.editor-action-btn:hover {
+  border-color: #4285f4;
+  color: #4285f4;
+}
+
+.editor-action-btn.ant-btn-primary {
+  background: linear-gradient(135deg, #4285f4 0%, #1e3a8a 100%);
+  border-color: #4285f4;
+  box-shadow: 0 2px 4px rgba(66, 133, 244, 0.2);
+}
+
+.editor-action-btn.ant-btn-primary:hover {
+  background: linear-gradient(135deg, #1e3a8a 0%, #4285f4 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3);
 }
 
 .editor-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .editor-content {
-  height: calc(100vh - 64px);
-  padding: 16px;
+  height: calc(100vh - 72px);
+  padding: 24px 32px;
   overflow-y: auto;
   background-color: #f5f7fa;
 }
@@ -57,6 +118,9 @@
   justify-content: center;
   align-items: center;
   height: 100%;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 .editor-denied {
@@ -66,51 +130,127 @@
   height: 100%;
   max-width: 600px;
   margin: 0 auto;
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 .editor-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  background-color: #fff;
-  padding: 12px 16px;
+  margin-bottom: 24px;
+  background-color: #ffffff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  border: 1px solid #e8eef7;
+}
+
+.editor-toolbar .ant-typography {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.editor-toolbar .ant-select {
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.editor-toolbar .ant-select .ant-select-selector {
+  border-color: #e2e8f0;
+  border-radius: 8px;
+}
+
+.editor-toolbar .ant-select:hover .ant-select-selector {
+  border-color: #4285f4;
 }
 
 .editor-wrapper {
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  background-color: #fff;
-  height: calc(100% - 64px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  background-color: #ffffff;
+  height: calc(100% - 88px);
+  border: 1px solid #e8eef7;
 }
 
 .changelog-list {
-  padding: 8px;
+  padding: 12px;
 }
 
 .changelog-item {
-  padding: 12px !important;
-  border-radius: 6px !important;
-  transition: background-color 0.2s ease;
+  padding: 16px !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease;
+  margin-bottom: 8px !important;
+  border: 1px solid #e8eef7 !important;
+  background-color: #ffffff !important;
 }
 
 .changelog-item:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: #e8eef7 !important;
+  border-color: #4285f4 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.15);
+}
+
+/* Permission alert styling */
+.ant-alert-info {
+  border-radius: 8px;
+  border-color: #4285f4;
+  background-color: #f0f7ff;
+}
+
+/* Version select styling */
+.ant-select-dropdown {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Button improvements */
+.ant-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.ant-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Divider styling */
+.ant-divider-vertical {
+  border-color: #e2e8f0;
+}
+
+/* Tag styling */
+.ant-tag {
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
   .editor-header {
-    padding: 0 16px;
+    padding: 0 20px;
     flex-wrap: wrap;
+    height: auto;
+    min-height: 72px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .editor-content {
+    padding: 16px 20px;
+    height: calc(100vh - 88px);
   }
 
   .editor-toolbar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
   }
 
   .project-title {
@@ -118,5 +258,31 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .project-title h4 {
+    font-size: 18px !important;
+  }
+
+  .editor-header-left {
+    gap: 12px;
+  }
+
+  .editor-header-right {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .editor-actions {
+    gap: 8px;
+  }
+
+  .editor-action-btn {
+    height: 36px;
+    padding: 0 12px;
+  }
+
+  .editor-wrapper {
+    height: calc(100% - 72px);
   }
 }

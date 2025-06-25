@@ -5,6 +5,9 @@ import { RouterProvider } from 'react-router-dom';
 import { themeConfig } from '@vissoft-react/common';
 import { router } from './routes';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider as CustomThemeProvider } from './contexts/ThemeContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import './styles/theme.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,45 +23,49 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={themeConfig}>
-        <ConfigProvider
-          theme={{
-            token: {
-              fontFamily: 'Inter',
-              colorPrimary: themeConfig.primary,
-              controlHeight: 36,
-            },
-            components: {
-              Form: {
-                itemMarginBottom: 10,
-              },
-              Input: {
-                colorTextDisabled: 'black',
-              },
-              Select: {
-                colorTextDisabled: 'black',
-              },
-              DatePicker: {
-                colorTextDisabled: 'black',
-              },
-            },
-          }}
-        >
-          <AuthProvider>
-            <RouterProvider
-              fallbackElement={
-                <div className="flex h-screen items-center justify-center">
-                  <Spin spinning={true} />
-                </div>
-              }
-              future={{
-                v7_startTransition: false,
+      <CustomThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider theme={themeConfig}>
+            <ConfigProvider
+              theme={{
+                token: {
+                  fontFamily: 'Inter',
+                  colorPrimary: themeConfig.primary,
+                  controlHeight: 36,
+                },
+                components: {
+                  Form: {
+                    itemMarginBottom: 10,
+                  },
+                  Input: {
+                    colorTextDisabled: 'black',
+                  },
+                  Select: {
+                    colorTextDisabled: 'black',
+                  },
+                  DatePicker: {
+                    colorTextDisabled: 'black',
+                  },
+                },
               }}
-              router={router}
-            />
-          </AuthProvider>
-        </ConfigProvider>
-      </ThemeProvider>
+            >
+              <AuthProvider>
+                <RouterProvider
+                  fallbackElement={
+                    <div className="flex h-screen items-center justify-center">
+                      <Spin spinning={true} />
+                    </div>
+                  }
+                  future={{
+                    v7_startTransition: false,
+                  }}
+                  router={router}
+                />
+              </AuthProvider>
+            </ConfigProvider>
+          </ThemeProvider>
+        </LanguageProvider>
+      </CustomThemeProvider>
     </QueryClientProvider>
   );
 }

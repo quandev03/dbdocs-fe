@@ -1,0 +1,23 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle for better contrast -->
+  <circle cx="16" cy="16" r="15" fill="#1e3a8a"/>
+  
+  <!-- Simplified database icon for favicon -->
+  <ellipse cx="16" cy="10" rx="8" ry="3" fill="#0ea5e9"/>
+  <rect x="8" y="10" width="16" height="8" fill="#0ea5e9"/>
+  <ellipse cx="16" cy="18" rx="8" ry="3" fill="#0ea5e9"/>
+  
+  <ellipse cx="16" cy="14" rx="8" ry="3" fill="#06b6d4"/>
+  <rect x="8" y="14" width="16" height="6" fill="#06b6d4"/>
+  <ellipse cx="16" cy="20" rx="8" ry="3" fill="#06b6d4"/>
+  
+  <ellipse cx="16" cy="17" rx="8" ry="3" fill="#0891b2"/>
+  <rect x="8" y="17" width="16" height="5" fill="#0891b2"/>
+  <ellipse cx="16" cy="22" rx="8" ry="3" fill="#0891b2"/>
+  
+  <!-- Single status indicator -->
+  <circle cx="22" cy="16" r="2" fill="#22c55e"/>
+  
+  <!-- Small "DB" text -->
+  <text x="16" y="28" font-family="Inter, sans-serif" font-size="6" font-weight="bold" text-anchor="middle" fill="white">DB</text>
+</svg> 
