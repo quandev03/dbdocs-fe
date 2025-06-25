@@ -43,14 +43,14 @@ const AuthCallback: React.FC = () => {
 
         // Fetch user information
         const userInfo = await authService.fetchUserInfo();
-        
+
         if (userInfo) {
           // Refresh auth context
           await refreshUserInfo();
-          
+
           // Redirect to dashboard
           console.log('OAuth login successful, redirecting to dashboard');
-          navigate('/dashboard', { replace: true });
+          navigate('/', { replace: true });
         } else {
           throw new Error('Failed to fetch user information');
         }
@@ -58,7 +58,7 @@ const AuthCallback: React.FC = () => {
         console.error('OAuth callback error:', err);
         setError(err.message || 'Authentication failed');
         setLoading(false);
-        
+
         // Redirect to login after error
         setTimeout(() => {
           navigate('/login', { replace: true });
@@ -98,4 +98,4 @@ const AuthCallback: React.FC = () => {
   );
 };
 
-export default AuthCallback; 
+export default AuthCallback;
