@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import authService from '../../../services/authService';
+import { API_CONFIG } from '../../../config';
 import {
   Layout,
   Tabs,
@@ -230,15 +231,19 @@ const DocumentationPage: React.FC = () => {
     const fetchCurrentUser = async () => {
       try {
         console.log("get data user");
-        const currentUser = await authService.getCurrentUser();
+        const currentUser: {
+          email: string;
+          fullName: string;
+          avatarUrl: string;
+        } | null = await authService.getCurrentUser();
 
         console.log("currentUser", currentUser);
 
         // Chỉ cập nhật state nếu component vẫn còn được mount
         if (isMounted) {
           setCreatorInfo({
-            fullName: currentUser?.name || currentUser?.email || 'Unknown User',
-            avatarUrl: currentUser?.pictureUrl || '',
+            fullName: currentUser?.fullName || currentUser?.email || 'Unknown User',
+            avatarUrl: currentUser?.avatarUrl || '',
           });
         }
       } catch (error) {
@@ -1530,7 +1535,7 @@ const DocumentationPage: React.FC = () => {
       };
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/sharing/${project.projectId}`,
+        `${API_CONFIG.BASE_URL}/api/v1/projects/sharing/${project.projectId}`,
         payload,
         {
           headers: {
@@ -1571,7 +1576,7 @@ const DocumentationPage: React.FC = () => {
   const handleSharedProjectAccess = async (projectId: string, shareType: number, password: string | null = null) => {
     try {
       const response = await axios.post(
-        `${import.meta.env.VITE_API_DOMAIN}/api/v1/projects/shared/${projectId}`,
+        `${API_CONFIG.BASE_URL}/api/v1/projects/shared/${projectId}`,
         {
           passwordShare: password
         },

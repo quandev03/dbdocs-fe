@@ -6,6 +6,7 @@ import * as diff from 'diff';
 import { getProjectVersions, VersionInfo } from '../services/changelog.service';
 import axios from 'axios';
 import { DownloadOutlined, CopyOutlined, CodeOutlined } from '@ant-design/icons';
+import { API_CONFIG } from '../../../config';
 
 // Icons for the summary
 import { PlusCircleOutlined, MinusCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
@@ -234,7 +235,7 @@ const CodeComparePage: React.FC = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/compare`,
+        `${API_CONFIG.BASE_URL}/api/v1/versions/compare`,
         {
           params: {
             projectId,
@@ -310,7 +311,7 @@ const CodeComparePage: React.FC = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/generate-ddl`,
+        `${API_CONFIG.BASE_URL}/api/v1/versions/generate-ddl`,
         {
           projectId,
           fromVersion: fromVersion.codeVersion,

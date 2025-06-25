@@ -19,9 +19,9 @@ const getEnvVar = (name: string): string => {
 
 // API configuration
 export const API_CONFIG = {
-  BASE_URL: getEnvVar('VITE_API_DOMAIN'),
+  BASE_URL: getEnvVar('VITE_API_DOMAIN') || 'https://api-dbdocs.mmoall.com',
   TIMEOUT: 60000, // 60 seconds
-  BASE_URL_FE: getEnvVar('VITE_FRONTEND_URL')
+  BASE_URL_FE: getEnvVar('VITE_FRONTEND_URL') || 'https://dbdocs.mmoall.com'
 };
 
 // Log for debugging
