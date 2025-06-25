@@ -96,7 +96,7 @@ export const getLatestChangelog = async (projectId: string): Promise<Changelog |
  */
 export const getProjectVersions = async (projectId: string): Promise<VersionInfo[]> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('dbdocs_token');
 
     const response = await axios.get(
       `${API_CONFIG.BASE_URL}/api/v1/versions/project/${projectId}`,
