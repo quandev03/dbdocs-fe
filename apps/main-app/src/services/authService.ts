@@ -166,7 +166,7 @@ class AuthService {
   // Fetch user info from API
   async fetchUserInfo(): Promise<User | null> {
     try {
-      const response = await fetch(`${this.BACKEND_URL}/api/user/me`, {
+      const response = await fetch(`${this.BACKEND_URL}/api/v1/users/me`, {
         headers: {
           'Authorization': this.getAuthorizationHeader() || '',
           'Content-Type': 'application/json'
