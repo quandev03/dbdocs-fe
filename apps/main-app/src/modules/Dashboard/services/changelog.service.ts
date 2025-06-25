@@ -65,7 +65,7 @@ export interface CreateVersionResponse {
  */
 export const getLatestChangelog = async (projectId: string): Promise<Changelog | null> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('dbdocs_token');
 
     const response = await axios.get(
       `${API_CONFIG.BASE_URL}/api/v1/changelogs/latest/project/${projectId}`,
