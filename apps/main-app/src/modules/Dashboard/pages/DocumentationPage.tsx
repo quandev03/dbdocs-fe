@@ -1528,7 +1528,7 @@ const DocumentationPage: React.FC = () => {
 
     setShareLoading(true);
     try {
-      const token = localStorage.getItem('dbdocs-token');
+      const token = localStorage.getItem('dbdocs_token');
       const payload: ShareFormValues = {
         shareType,
         passwordShare: showPasswordField ? sharePassword : null
