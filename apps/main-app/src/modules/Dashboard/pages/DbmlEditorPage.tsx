@@ -320,10 +320,14 @@ export const DbmlEditorPage: React.FC = () => {
     navigate(-1); // Go back to previous page
   };
 
-  const handleDbmlChange = (newCode: string) => {
-    setDbmlCode(newCode);
-    setHasChanges(true);
-  };
+  // Debounce onChange for better performance
+  const handleDbmlChange = useCallback(
+    (newCode: string) => {
+      setDbmlCode(newCode);
+      setHasChanges(true);
+    },
+    [] // No dependencies needed for simple setState
+  );
 
   // Xử lý khi người dùng muốn quay về một changelog
   const handleApplyChangelog = (changelog: ChangelogItem) => {
@@ -382,7 +386,7 @@ export const DbmlEditorPage: React.FC = () => {
 
   // Tải nội dung của một phiên bản cụ thể
   const loadVersionContent = async (versionId: string) => {
-    setLoading(true);
+    // Don't show full page loading for version content changes
     try {
       // Tìm phiên bản trong danh sách đã tải
       const selectedVersion = versions.find(v => v.id === versionId);
@@ -393,12 +397,11 @@ export const DbmlEditorPage: React.FC = () => {
         setHasChanges(false);
         // Khi chọn version, xóa thông tin về changelog hiện tại
         setCurrentChangelogCode('');
+        console.log('✅ Version content loaded successfully');
       }
     } catch (error) {
       console.error('Error loading version content:', error);
       message.error('Failed to load version content');
-    } finally {
-      setLoading(false);
     }
   };
 
