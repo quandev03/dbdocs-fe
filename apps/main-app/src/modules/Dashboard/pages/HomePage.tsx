@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, message } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, message, Divider } from 'antd';
 import { 
   PlusOutlined, 
   SearchOutlined, 
@@ -14,12 +14,18 @@ import {
   MenuFoldOutlined,
   QuestionCircleOutlined,
   LogoutOutlined,
-  SettingOutlined
+  SettingOutlined,
+  SunOutlined,
+  MoonOutlined,
+  GlobalOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import '../styles/HomePage.css';
 import { apiService } from '../../../services/apiService';
+import Logo from '../../../components/common/Logo';
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
@@ -27,6 +33,17 @@ const { Text, Title } = Typography;
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
+
+  // Debug: Log language changes
+  console.log('HomePage render - current language:', language);
+  console.log('Sample translation:', t('homepage.title'));
+
+  // Track language changes
+  useEffect(() => {
+    console.log('Language changed to:', language);
+  }, [language]);
   const [searchText, setSearchText] = useState('');
   const [projectSearchText, setProjectSearchText] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -227,9 +244,9 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     {
-      title: 'Name project',
+      title: t('homepage.nameProject'),
       dataIndex: 'name',
       key: 'name',
       render: (text: string, record: any) => (
@@ -240,13 +257,13 @@ const HomePage: React.FC = () => {
       )
     },
     {
-      title: 'Last modified',
+      title: t('homepage.lastModified'),
       dataIndex: 'lastModified',
       key: 'lastModified',
       responsive: ['md'] as any
     },
     {
-      title: 'Created at',
+      title: t('homepage.createdAt'),
       dataIndex: 'createdAt',
       key: 'createdAt',
       responsive: ['lg'] as any
@@ -256,7 +273,7 @@ const HomePage: React.FC = () => {
       key: 'actions',
       render: (_: any, record: any) => (
         <Space className="action-buttons">
-          <Tooltip title="Edit">
+          <Tooltip title={t('homepage.edit')}>
             <Button 
               type="text" 
               icon={<EditOutlined />} 
@@ -267,7 +284,7 @@ const HomePage: React.FC = () => {
               }} 
             />
           </Tooltip>
-          <Tooltip title="View Docs">
+          <Tooltip title={t('homepage.viewDocs')}>
             <Button 
               type="text" 
               icon={<BookOutlined />} 
@@ -281,7 +298,7 @@ const HomePage: React.FC = () => {
           <Dropdown 
             overlay={
               <Menu>
-                <Menu.Item key="1" icon={<SearchOutlined />}>View details</Menu.Item>
+                <Menu.Item key="1" icon={<SearchOutlined />}>{t('homepage.viewDetails')}</Menu.Item>
                 {/* <Menu.Item key="2" icon={<EditOutlined />}>Rename</Menu.Item> */}
                 <Menu.Divider />
                 <Menu.Item
@@ -292,7 +309,7 @@ const HomePage: React.FC = () => {
                   handleDeleteProject(record.id);
                 }}
                 >
-                  Delete
+                  {t('homepage.delete')}
                   </Menu.Item>
               </Menu>
             } 
@@ -308,7 +325,7 @@ const HomePage: React.FC = () => {
         </Space>
       ),
     },
-  ];
+  ], [t, navigate, handleDeleteProject]);
 
   const renderSidebarIcon = (icon: React.ReactNode, menuKey: string) => {
     return (
@@ -319,8 +336,8 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="dashboard-container">
-      <Header className="top-header" style={{ background: '#fff', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="dashboard-container" key={language}>
+      <Header className="top-header">
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {windowWidth <= 768 && (
             <Button 
@@ -331,20 +348,15 @@ const HomePage: React.FC = () => {
               style={{ marginRight: '10px' }}
             />
           )}
-          <div className="logo-text" onClick={() => navigate('/')}>DBDocs</div>
+          <div className="logo-container" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <Logo variant="full" width={100} height={60} />
+          </div>
         </div>
         
-        <Input 
-          className="search-header-input"
-          placeholder="Search diagram" 
-          prefix={<SearchOutlined />} 
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          style={{ width: windowWidth <= 768 ? '150px' : '300px', margin: '0 20px' }}
-        />
+                <div style={{ flex: 1 }} />
         
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Tooltip title="Help">
+          <Tooltip title={t('homepage.help')}>
             <Button 
               type="text" 
               icon={<QuestionCircleOutlined />} 
@@ -357,20 +369,39 @@ const HomePage: React.FC = () => {
           <Dropdown
             overlay={
               <Menu>
-                <Menu.Item key="profile" icon={<UserOutlined />}>Profile</Menu.Item>
-                <Menu.Item key="settings" icon={<SettingOutlined />}>Settings</Menu.Item>
+                <Menu.Item key="profile" icon={<UserOutlined />}>{t('homepage.profile')}</Menu.Item>
+                <Menu.SubMenu key="settings" icon={<SettingOutlined />} title={t('homepage.settings')}>
+                  <Menu.Item 
+                    key="theme" 
+                    icon={theme === 'light' ? <MoonOutlined /> : <SunOutlined />}
+                    onClick={toggleTheme}
+                  >
+                    {theme === 'light' ? t('homepage.darkMode') : t('homepage.lightMode')}
+                  </Menu.Item>
+                  <Menu.Item 
+                    key="language" 
+                    icon={<GlobalOutlined />}
+                    onClick={toggleLanguage}
+                  >
+                    {language === 'en' ? t('homepage.vietnamese') : t('homepage.english')}
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item key="api-tokens" icon={<KeyOutlined />} onClick={() => handleMenuItemClick('api-tokens')}>
+                    {t('homepage.apiTokens')}
+                  </Menu.Item>
+                </Menu.SubMenu>
                 <Menu.Divider />
-                <Menu.Item key="logout" icon={<LogoutOutlined />} danger onClick={handleLogout}>Logout</Menu.Item>
+                <Menu.Item key="logout" icon={<LogoutOutlined />} danger onClick={handleLogout}>{t('homepage.logout')}</Menu.Item>
               </Menu>
             }
             trigger={['click']}
           >
             <div className="user-dropdown">
-              <Avatar style={{ backgroundColor: '#1890ff' }}>
+              <Avatar style={{ backgroundColor: '#4285f4' }}>
                 {user?.name ? user.name[0].toUpperCase() : 'U'}
               </Avatar>
               {windowWidth > 480 && (
-                <span style={{ marginLeft: '8px', fontWeight: 500 }}>
+                <span style={{ marginLeft: '8px', fontWeight: 500, color: '#475569' }}>
                   {user?.email || 'quandev03@gmail.com'}
                 </span>
               )}
@@ -380,72 +411,75 @@ const HomePage: React.FC = () => {
       </Header>
       
       <div className={`left-sidebar ${sidebarVisible ? 'visible' : ''}`}>
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'new-project' ? 'menu-item-active' : ''}`}
-          onClick={() => {
-            handleMenuItemClick('new-project');
-            handleCreateProject();
-          }}
-        >
-          <div className="sidebar-icon">
-            <PlusOutlined />
+        <div className="sidebar-section">
+          <div 
+            className={`sidebar-menu-item new-project-item ${activeMenuItem === 'new-project' ? 'menu-item-active' : ''}`}
+            onClick={() => {
+              handleMenuItemClick('new-project');
+              handleCreateProject();
+            }}
+          >
+            <div className="sidebar-icon">
+              <PlusOutlined />
+            </div>
+            <span>{t('homepage.newProject')}</span>
           </div>
-          New Project
         </div>
         
         <div className="sidebar-divider" />
         
-        <div 
-          className={`sidebar-menu-item featured ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('my-projects')}
-        >
-          <div className="sidebar-icon">
-            <StarFilled className="star-icon" />
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">{t('homepage.projectsSection').toUpperCase()}</div>
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('my-projects')}
+          >
+            <div className="sidebar-icon">
+              <StarFilled className="star-icon" />
+            </div>
+            <span>{t('homepage.myProjects')}</span>
           </div>
-          My Project
-        </div>
-        
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('shared')}
-        >
-          <div className="sidebar-icon">
-            <ShareAltOutlined />
+          
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('shared')}
+          >
+            <div className="sidebar-icon">
+              <StarFilled className="star-icon" />
+            </div>
+            <span>{t('homepage.sharedWithMe')}</span>
           </div>
-          <span>Shared with me</span>
         </div>
         
         <div className="sidebar-divider" />
         
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('api-tokens')}
-        >
-          <div className="sidebar-icon">
-            <KeyOutlined />
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">{t('homepage.settingsSection').toUpperCase()}</div>
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('api-tokens')}
+          >
+            <div className="sidebar-icon">
+              <KeyOutlined />
+            </div>
+            <span>{t('homepage.apiTokens')}</span>
           </div>
-          <span>API Tokens</span>
         </div>
       </div>
       
       <div className="content-wrapper">
-        <div className="fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <Title level={4} style={{ margin: 0 }}>Projects</Title>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={handleCreateProject}
-            className="new-project-button"
-          >
-            New Project
-          </Button>
+        <div className="fade-in page-header">
+          <div>
+            <h1 className="page-title">{t('homepage.projectsTitle')}</h1>
+            <p className="page-subtitle">{t('homepage.projectsSubtitle')}</p>
+          </div>
         </div>
         
         <div className="project-list-container fade-in">
           <div className="table-header">
-            <Typography.Text strong>All Projects ({loading ? '...' : filteredProjects.length})</Typography.Text>
+            <Typography.Text strong>{t('homepage.allProjects')} ({loading ? '...' : filteredProjects.length})</Typography.Text>
             <Input 
-              placeholder="Search projects" 
+              placeholder={t('homepage.searchProjects')} 
               prefix={<SearchOutlined />} 
               style={{ width: 200 }}
               value={projectSearchText}
@@ -456,7 +490,7 @@ const HomePage: React.FC = () => {
           
           {loading ? (
             <div className="loading-container">
-              <Spin tip="Loading projects..." />
+              <Spin tip={t('homepage.loadingProjects')} />
             </div>
           ) : filteredProjects.length > 0 ? (
             <Table 
@@ -474,7 +508,7 @@ const HomePage: React.FC = () => {
             <div className="empty-state">
               <Empty description={
                 <span>
-                  {projectSearchText ? 'No projects match your search' : 'No projects found'}
+                  {projectSearchText ? t('homepage.noProjectsSearch') : t('homepage.noProjectsFound')}
                 </span>
               } />
             </div>

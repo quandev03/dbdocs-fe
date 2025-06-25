@@ -22,7 +22,8 @@ import {
   Divider,
   Input,
   Select,
-  Modal
+  Modal,
+  Dropdown
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -43,6 +44,7 @@ import {
   SearchOutlined,
   FileOutlined,
   ApartmentOutlined,
+  DatabaseOutlined,
   UploadOutlined,
   ZoomOutOutlined,
   ZoomInOutlined,
@@ -54,7 +56,11 @@ import {
   GlobalOutlined,
   LinkOutlined,
   TeamOutlined,
-  CopyOutlined
+  CopyOutlined,
+  SettingOutlined,
+  MoonOutlined,
+  SunOutlined,
+  LogoutOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { apiService } from '../../../services/apiService';
@@ -63,6 +69,11 @@ import MonacoEditor from '@monaco-editor/react';
 import * as diff from 'diff';
 import CodeCompareModal from './CodeCompareModal';
 import axios from 'axios';
+import Logo from '../../../components/common/Logo';
+import SettingsPopup from '../../../components/SettingsPopup';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
+import './DocumentationPage.css';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -186,6 +197,8 @@ const DocumentationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('wiki');
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const { theme, toggleTheme } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
   const [versions, setVersions] = useState<VersionInfo[]>([]);
   const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
   const [changelogLoading, setChangelogLoading] = useState<boolean>(false);
@@ -217,6 +230,8 @@ const DocumentationPage: React.FC = () => {
   const [sharedProjectId, setSharedProjectId] = useState<string>('');
   const [sharedProjectType, setSharedProjectType] = useState<number>(0);
   const [accessCall, setAccessCall] = useState<boolean>(false);
+  const [selectedTable, setSelectedTable] = useState<TableStructure | null>(null);
+  const [selectedSchemaName, setSelectedSchemaName] = useState<string>('');
 
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -231,19 +246,15 @@ const DocumentationPage: React.FC = () => {
     const fetchCurrentUser = async () => {
       try {
         console.log("get data user");
-        const currentUser: {
-          email: string;
-          fullName: string;
-          avatarUrl: string;
-        } | null = await authService.getCurrentUser();
+        const currentUser = await authService.getCurrentUser();
 
         console.log("currentUser", currentUser);
 
         // Chỉ cập nhật state nếu component vẫn còn được mount
         if (isMounted) {
           setCreatorInfo({
-            fullName: currentUser?.fullName || currentUser?.email || 'Unknown User',
-            avatarUrl: currentUser?.avatarUrl || '',
+            fullName: currentUser?.name || currentUser?.email || 'Unknown User',
+            avatarUrl: currentUser?.pictureUrl || '',
           });
         }
       } catch (error) {
@@ -626,10 +637,340 @@ const DocumentationPage: React.FC = () => {
   const toggleTableExpansion = (schemaIndex: number, tableIndex: number) => {
     setSchemaStructure(prevSchemas => {
       const newSchemas = [...prevSchemas];
-      newSchemas[schemaIndex].tables[tableIndex].isExpanded =
-        !newSchemas[schemaIndex].tables[tableIndex].isExpanded;
+      const currentExpanded = newSchemas[schemaIndex].tables[tableIndex].isExpanded;
+      newSchemas[schemaIndex].tables[tableIndex].isExpanded = !currentExpanded;
+      
+      console.log(`Toggling table ${tableIndex} in schema ${schemaIndex} from ${currentExpanded} to ${!currentExpanded}`);
+      
       return newSchemas;
     });
+  };
+
+  // Handle table selection for detail view
+  const handleTableSelect = (table: TableStructure, schemaName: string) => {
+    setSelectedTable(table);
+    setSelectedSchemaName(schemaName);
+  };
+
+  // Handle schema selection for database overview
+  const handleSchemaSelect = (schemaName: string) => {
+    setSelectedTable(null);
+    setSelectedSchemaName(schemaName);
+  };
+
+  // Handle back to database view
+  const handleBackToDatabaseView = () => {
+    setSelectedTable(null);
+    setSelectedSchemaName('');
+  };
+
+  // Render database overview when schema is selected (without specific table)
+  const renderDatabaseOverviewContent = () => {
+    if (!selectedSchemaName) return null;
+
+    const selectedSchema = schemaStructure.find(s => s.name === selectedSchemaName);
+    if (!selectedSchema) return null;
+
+    return (
+      <div className="database-overview-content" style={{ padding: '0' }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '24px',
+          padding: '16px 24px',
+          backgroundColor: '#fff',
+          borderRadius: '4px',
+          border: '1px solid #e8e8e8'
+        }}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={handleBackToDatabaseView}
+            style={{ 
+              marginRight: '12px',
+              color: '#1890ff'
+            }}
+          >
+            {t('docs.back')}
+          </Button>
+          <div style={{ flex: 1 }}>
+            <Title level={3} style={{ margin: 0, marginBottom: '4px' }}>
+              {selectedSchemaName}(dbdocs)
+            </Title>
+            <Text style={{ color: '#8c8c8c', fontSize: '14px' }}>
+              Database Schema • {selectedSchema.tables.length} tables • {selectedSchema.tables.reduce((total, table) => total + table.columns.length, 0)} fields
+            </Text>
+          </div>
+        </div>
+
+        {/* Database statistics */}
+        <Row gutter={16} style={{ marginBottom: '24px' }}>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Tables"
+                value={selectedSchema.tables.length}
+                prefix={<TableOutlined style={{ color: '#1890ff' }} />}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Fields"
+                value={selectedSchema.tables.reduce((total, table) => total + table.columns.length, 0)}
+                prefix={<FieldNumberOutlined style={{ color: '#1890ff' }} />}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Updates"
+                value={tableStats.updateCount}
+                prefix={<EditOutlined style={{ color: '#1890ff' }} />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Tables list */}
+        <Card title="Tables" style={{ marginBottom: '24px' }}>
+          <Table
+            dataSource={selectedSchema.tables.map((table, index) => ({
+              key: index,
+              ...table
+            }))}
+            pagination={false}
+            size="middle"
+            columns={[
+              {
+                title: 'Name',
+                dataIndex: 'name',
+                key: 'name',
+                render: (name: string, record) => (
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: '#1890ff'
+                    }}
+                    onClick={() => handleTableSelect(record, selectedSchemaName)}
+                  >
+                    <TableOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                    <Text strong style={{ color: '#1890ff' }}>{name}</Text>
+                  </div>
+                )
+              },
+              {
+                title: 'Columns',
+                key: 'columns',
+                render: (_, record) => (
+                  <Text>{record.columns.length}</Text>
+                )
+              },
+              {
+                title: 'Table notes',
+                dataIndex: 'note',
+                key: 'note',
+                render: (note: string) => (
+                  <Text style={{ 
+                    color: note ? '#595959' : '#bfbfbf',
+                    fontStyle: note ? 'normal' : 'italic'
+                  }}>
+                    {note || 'No notes'}
+                  </Text>
+                )
+              },
+              {
+                title: 'Last Update',
+                key: 'lastUpdate',
+                render: () => {
+                  const latestVersion = versions.length > 0 ? versions[0] : null;
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <ClockCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+                      {latestVersion?.createdDate ? formatDate(latestVersion.createdDate) :
+                       (project?.modifiedDate ? formatDate(project.modifiedDate) : 'N/A')}
+                    </div>
+                  );
+                }
+              }
+            ]}
+            onRow={(record) => ({
+              style: { cursor: 'pointer' },
+              onClick: () => handleTableSelect(record, selectedSchemaName)
+            })}
+          />
+        </Card>
+      </div>
+    );
+  };
+
+  // Render table detail in main content area
+  const renderTableDetailContent = () => {
+    if (!selectedTable) return null;
+
+    return (
+      <div className="table-detail-content" style={{ padding: '0' }}>
+        {/* Header with back button */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '24px',
+          padding: '16px 24px',
+          backgroundColor: '#fff',
+          borderRadius: '4px',
+          border: '1px solid #e8e8e8'
+        }}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={handleBackToDatabaseView}
+            style={{ 
+              marginRight: '12px',
+              color: '#1890ff'
+            }}
+          >
+            {t('docs.backToDatabase')}
+          </Button>
+          <div style={{ flex: 1 }}>
+            <Title level={3} style={{ margin: 0, marginBottom: '4px' }}>
+              {selectedTable.name}
+            </Title>
+            <Text style={{ color: '#8c8c8c', fontSize: '14px' }}>
+              Schema: {selectedSchemaName} • {selectedTable.columns.length} columns
+            </Text>
+          </div>
+        </div>
+
+        {/* Table note if exists */}
+        {selectedTable.note && (
+          <Card style={{ marginBottom: '24px' }}>
+            <Text strong>Table Description:</Text>
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#595959' }}>
+              {selectedTable.note}
+            </div>
+          </Card>
+        )}
+
+        {/* Table statistics */}
+        <Row gutter={16} style={{ marginBottom: '24px' }}>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Total Columns"
+                value={selectedTable.columns.length}
+                prefix={<FieldNumberOutlined style={{ color: '#1890ff' }} />}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Key Columns"
+                value={selectedTable.columns.filter(col => 
+                  col.name.toLowerCase().includes('id') && 
+                  (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id')
+                ).length}
+                prefix={<span style={{ color: '#faad14' }}>🔑</span>}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ textAlign: 'center', height: '100%' }}>
+              <Statistic
+                title="Regular Fields"
+                value={selectedTable.columns.filter(col => 
+                  !(col.name.toLowerCase().includes('id') && 
+                    (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id'))
+                ).length}
+                prefix={<span style={{ color: '#52c41a' }}>●</span>}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Columns table */}
+        <Card title="Table Structure" style={{ marginBottom: '24px' }}>
+          <Table
+            dataSource={selectedTable.columns.map((col, index) => ({
+              key: index,
+              ...col
+            }))}
+            pagination={false}
+            size="middle"
+            columns={[
+              {
+                title: 'Column Name',
+                dataIndex: 'name',
+                key: 'name',
+                render: (name: string) => (
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    {getColumnIcon('', name)}
+                    <Text strong style={{ marginLeft: '8px' }}>{name}</Text>
+                  </div>
+                )
+              },
+              {
+                title: 'Data Type',
+                dataIndex: 'type',
+                key: 'type',
+                render: (type: string) => (
+                  <Text code style={{ 
+                    backgroundColor: '#f5f5f5',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontFamily: 'Monaco, Consolas, monospace'
+                  }}>
+                    {type}
+                  </Text>
+                )
+              },
+              {
+                title: 'Constraints',
+                key: 'constraints',
+                render: (_, record) => (
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {record.name.toLowerCase().includes('id') && 
+                     (record.name.toLowerCase().endsWith('_id') || record.name.toLowerCase() === 'id') && (
+                      <Tag color="orange" style={{ margin: 0 }}>
+                        KEY
+                      </Tag>
+                    )}
+                    {record.type.toLowerCase().includes('not null') && (
+                      <Tag color="green" style={{ margin: 0 }}>
+                        NOT NULL
+                      </Tag>
+                    )}
+                    {record.type.toLowerCase().includes('unique') && (
+                      <Tag color="blue" style={{ margin: 0 }}>
+                        UNIQUE
+                      </Tag>
+                    )}
+                  </div>
+                )
+              },
+              {
+                title: 'Note',
+                dataIndex: 'note',
+                key: 'note',
+                render: (note: string) => (
+                  <Text style={{ 
+                    color: note ? '#595959' : '#bfbfbf',
+                    fontStyle: note ? 'normal' : 'italic'
+                  }}>
+                    {note || 'No notes'}
+                  </Text>
+                )
+              }
+            ]}
+          />
+        </Card>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -673,18 +1014,21 @@ const DocumentationPage: React.FC = () => {
     if (!project) return <Spin size="large" />;
 
     return (
-      <div className="project-info-container" style={{
-        backgroundColor: '#fff',
-        padding: '24px',
-        borderRadius: '4px',
-        border: '1px solid #e8e8e8',
-        marginBottom: '24px'
-      }}>
-        <Title level={2} style={{ fontSize: '28px', marginBottom: '24px' }}>{project.projectName}</Title>
+      <div 
+        className="project-info-container" 
+        key={language} // Force re-render on language change
+        style={{
+          backgroundColor: '#fff',
+          padding: '24px',
+          borderRadius: '4px',
+          border: '1px solid #e8e8e8',
+          marginBottom: '24px'
+        }}>
+        <Title level={2} className="project-title">{project.projectName}</Title>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '24px' }}>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Creator:</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.creator')}:</Text>
             <Space>
               <Avatar
                 size="small"
@@ -696,23 +1040,23 @@ const DocumentationPage: React.FC = () => {
             </Space>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Date created:</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.dateCreated')}:</Text>
             <Text>{project.createdDate ? formatDate(project.createdDate) : 'N/A'}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Project code:</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.projectCode')}:</Text>
             <Text>{project.projectCode}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Last updated:</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.lastUpdated')}:</Text>
             <Text>{project.modifiedDate ? formatDate(project.modifiedDate) : 'N/A'}</Text>
           </div>
           <div style={{ width: '50%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Version:</Text>
-            <Text>{selectedVersion || (versions.length > 0 ? versions[0].codeVersion.toString() : 'N/A')} {versions.length > 0 ? '(Latest)' : ''}</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.version')}:</Text>
+            <Text>{selectedVersion || (versions.length > 0 ? versions[0].codeVersion.toString() : 'N/A')} {versions.length > 0 ? `(${t('docs.latest')})` : ''}</Text>
           </div>
           <div style={{ width: '100%', display: 'flex', marginBottom: '16px' }}>
-            <Text strong style={{ width: '120px' }}>Description:</Text>
+            <Text strong style={{ width: '120px' }}>{t('docs.description')}:</Text>
             {isEditingDescription ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Input.TextArea
@@ -728,7 +1072,7 @@ const DocumentationPage: React.FC = () => {
               </div>
             ) : (
               <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
-                <Text style={{ flex: 1 }}>{project.description || 'No description provided'}</Text>
+                <Text style={{ flex: 1 }}>{project.description || t('docs.noDescription')}</Text>
                 <Button
                   type="text"
                   icon={<EditOutlined />}
@@ -748,11 +1092,21 @@ const DocumentationPage: React.FC = () => {
   const renderWikiTab = () => {
     if (!project) return null;
 
+    // If a table is selected, show table details in content
+    if (selectedTable) {
+      return renderTableDetailContent();
+    }
+
+    // If only schema is selected (without table), show database overview
+    if (selectedSchemaName && !selectedTable) {
+      return renderDatabaseOverviewContent();
+    }
+
     return (
       <div className="wiki-container">
         <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
           <Col span={24}>
-            <Text strong style={{ fontSize: '16px', display: 'block', marginBottom: '12px' }}>Recent activities</Text>
+            <Text strong style={{ fontSize: '16px', display: 'block', marginBottom: '12px' }}>{t('docs.recentActivities')}</Text>
             <div style={{ border: '1px solid #e8e8e8', borderRadius: '4px' }}>
               {(versions.length > 0 ? versions.slice(0, 3).map(v => ({
                 id: v.id,
@@ -891,7 +1245,7 @@ const DocumentationPage: React.FC = () => {
               })}
               <div style={{ padding: '12px 0', textAlign: 'center', borderTop: '1px solid #e8e8e8' }}>
                 <Button type="link" onClick={() => setActiveTab('changelog')} style={{ fontSize: '14px', color: '#4285f4' }}>
-                  view more
+                  {t('docs.viewMore')}
                 </Button>
               </div>
             </div>
@@ -901,6 +1255,7 @@ const DocumentationPage: React.FC = () => {
         <Row gutter={16} style={{ marginBottom: '24px' }}>
           <Col span={8}>
             <Card
+              className="stats-card"
               style={{ textAlign: 'center', height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
               bodyStyle={{ padding: '16px 12px' }}
             >
@@ -908,13 +1263,14 @@ const DocumentationPage: React.FC = () => {
                 <TableOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
               </div>
               <div style={{ marginBottom: '4px' }}>
-                <Title level={2} style={{ margin: 0, fontSize: '36px', color: '#262626' }}>{tableStats.tableCount}</Title>
+                <Title level={2} style={{ margin: 0 }}>{tableStats.tableCount}</Title>
               </div>
-              <Text style={{ fontSize: '14px', color: '#595959' }}>Tables</Text>
+              <Text className="stats-label">{t('docs.tables')}</Text>
             </Card>
           </Col>
           <Col span={8}>
             <Card
+              className="stats-card"
               style={{ textAlign: 'center', height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
               bodyStyle={{ padding: '16px 12px' }}
             >
@@ -922,13 +1278,14 @@ const DocumentationPage: React.FC = () => {
                 <FieldNumberOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
               </div>
               <div style={{ marginBottom: '4px' }}>
-                <Title level={2} style={{ margin: 0, fontSize: '36px', color: '#262626' }}>{tableStats.fieldCount}</Title>
+                <Title level={2} style={{ margin: 0 }}>{tableStats.fieldCount}</Title>
               </div>
-              <Text style={{ fontSize: '14px', color: '#595959' }}>Fields</Text>
+              <Text className="stats-label">{t('docs.fields')}</Text>
             </Card>
           </Col>
           <Col span={8}>
             <Card
+              className="stats-card"
               style={{ textAlign: 'center', height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
               bodyStyle={{ padding: '16px 12px' }}
             >
@@ -936,9 +1293,9 @@ const DocumentationPage: React.FC = () => {
                 <EditOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
               </div>
               <div style={{ marginBottom: '4px' }}>
-                <Title level={2} style={{ margin: 0, fontSize: '36px', color: '#262626' }}>{tableStats.updateCount}</Title>
+                <Title level={2} style={{ margin: 0 }}>{tableStats.updateCount}</Title>
               </div>
-              <Text style={{ fontSize: '14px', color: '#595959' }}>Updates</Text>
+              <Text className="stats-label">{t('docs.updates')}</Text>
             </Card>
           </Col>
         </Row>
@@ -949,9 +1306,9 @@ const DocumentationPage: React.FC = () => {
             padding: '8px 0',
             borderBottom: '1px solid #e8e8e8'
           }}>
-            <Col span={8}>Name</Col>
-            <Col span={8}>Table notes</Col>
-            <Col span={8}>Last Update</Col>
+            <Col span={8}>{t('docs.name')}</Col>
+            <Col span={8}>{t('docs.tableNotes')}</Col>
+            <Col span={8}>{t('docs.lastUpdate')}</Col>
           </Row>
 
           {schemaStructure.flatMap(schema =>
@@ -961,7 +1318,20 @@ const DocumentationPage: React.FC = () => {
               const latestVersion = versions.length > 0 ? versions[0] : null;
 
               return (
-                <Row key={`table-list-${schema.name}-${tableIndex}`} style={{ padding: '16px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row key={`table-list-${schema.name}-${tableIndex}`} style={{ 
+                  padding: '16px 0', 
+                  borderBottom: '1px solid #f0f0f0',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f6f6f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+                onClick={() => handleTableSelect(table, schema.name)}
+                >
                   <Col span={8} style={{ display: 'flex', alignItems: 'center' }}>
                     <TableOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                     {table.name}
@@ -1082,10 +1452,10 @@ const DocumentationPage: React.FC = () => {
     const emptyVersions: VersionInfo[] = [];
 
     return (
-      <div style={{ padding: '0' }}>
+      <div className="changelog-container" style={{ padding: '0' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-          <Text style={{ marginRight: '4px', fontSize: '13px' }}>
-            <Text strong>{project?.creatorName}</Text>/<Text strong>{project?.projectName}</Text>
+          <Text style={{ marginRight: '4px', fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
+            <Text strong style={{ fontFamily: 'Inter, sans-serif' }}>{project?.creatorName}</Text>/<Text strong style={{ fontFamily: 'Inter, sans-serif' }}>{project?.projectName}</Text>
           </Text>
         </div>
 
@@ -1254,111 +1624,512 @@ const DocumentationPage: React.FC = () => {
     );
   };
 
+  // Helper function to get column icon based on type
+  const getColumnIcon = (columnType: string, columnName: string) => {
+    const name = columnName.toLowerCase();
+    
+    // Primary key detection
+    if (name.includes('id') && (name.endsWith('_id') || name === 'id')) {
+      return <span style={{ color: '#faad14', fontSize: '10px' }}>🔑</span>;
+    }
+    
+    // Default icon for regular fields - unified design
+    return <span style={{ color: '#52c41a', fontSize: '10px' }}>●</span>;
+  };
+
+  // Render table detail view
+  const renderTableDetail = () => {
+    if (!selectedTable) return null;
+
+    return (
+      <div className="sidebar-content" style={{
+        padding: '0',
+        height: 'calc(100vh - 112px)',
+        overflow: 'auto',
+        backgroundColor: '#fafafa',
+        borderRight: '1px solid #e8e8e8'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 12px 12px 12px',
+          borderBottom: '1px solid #e8e8e8',
+          backgroundColor: '#fff',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              size="small"
+              onClick={handleBackToDatabaseView}
+              style={{ 
+                marginRight: '8px',
+                color: '#1890ff'
+              }}
+            />
+            <TableOutlined style={{ 
+              marginRight: '8px', 
+              color: '#1890ff',
+              fontSize: '14px' 
+            }} />
+            <Text strong style={{ 
+              fontSize: '13px',
+              color: '#262626'
+            }}>
+              {t('docs.tableDetail')}
+            </Text>
+          </div>
+          
+          {/* Table name and schema */}
+          <div style={{ marginBottom: '8px' }}>
+            <Text strong style={{ 
+              fontSize: '14px',
+              color: '#262626',
+              display: 'block'
+            }}>
+              {selectedTable.name}
+            </Text>
+            <Text style={{ 
+              fontSize: '11px',
+              color: '#8c8c8c'
+            }}>
+              Schema: {selectedSchemaName}
+            </Text>
+          </div>
+
+          {/* Table note if exists */}
+          {selectedTable.note && (
+            <div style={{
+              backgroundColor: '#f6f8fa',
+              padding: '8px',
+              borderRadius: '4px',
+              marginBottom: '8px',
+              fontSize: '11px',
+              color: '#586069'
+            }}>
+              <Text italic>{selectedTable.note}</Text>
+            </div>
+          )}
+          
+          {/* Stats */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            fontSize: '11px',
+            color: '#8c8c8c'
+          }}>
+            <span>
+              <FieldNumberOutlined style={{ marginRight: '4px' }} />
+              {selectedTable.columns.length} {t('docs.columns')}
+            </span>
+          </div>
+        </div>
+
+        {/* Columns Content */}
+        <div style={{ padding: '8px 0' }}>
+          {selectedTable.columns.map((column, index) => (
+            <div
+              key={`column-${index}`}
+              style={{
+                padding: '8px 12px',
+                margin: '2px 4px',
+                backgroundColor: '#fff',
+                borderRadius: '4px',
+                border: '1px solid #f0f0f0',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f6f6f6';
+                e.currentTarget.style.borderColor = '#d9d9d9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.borderColor = '#f0f0f0';
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                marginBottom: '4px'
+              }}>
+                {getColumnIcon(column.type, column.name)}
+                <Text strong style={{ 
+                  fontSize: '12px',
+                  marginLeft: '8px',
+                  color: '#262626',
+                  flex: 1
+                }}>
+                  {column.name}
+                </Text>
+                <Text style={{ 
+                  fontSize: '10px', 
+                  color: '#8c8c8c',
+                  backgroundColor: '#f5f5f5',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontFamily: 'Monaco, Consolas, monospace'
+                }}>
+                  {column.type}
+                </Text>
+              </div>
+              
+              {/* Column constraints/info */}
+              <div style={{ 
+                display: 'flex',
+                gap: '4px',
+                flexWrap: 'wrap'
+              }}>
+                {column.name.toLowerCase().includes('id') && (
+                  <span style={{
+                    fontSize: '9px',
+                    backgroundColor: '#fff7e6',
+                    color: '#fa8c16',
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    border: '1px solid #ffd591'
+                  }}>
+                    KEY
+                  </span>
+                )}
+                
+                {/* Add more constraint tags as needed */}
+                {column.type.toLowerCase().includes('not null') && (
+                  <span style={{
+                    fontSize: '9px',
+                    backgroundColor: '#f6ffed',
+                    color: '#52c41a',
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    border: '1px solid #b7eb8f'
+                  }}>
+                    NOT NULL
+                  </span>
+                )}
+              </div>
+
+              {/* Column note if exists */}
+              {column.note && (
+                <div style={{
+                  marginTop: '6px',
+                  fontSize: '10px',
+                  color: '#8c8c8c',
+                  fontStyle: 'italic'
+                }}>
+                  {column.note}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Render the sidebar with schema and table structure
   const renderSidebar = () => {
     return (
-      <div style={{
-        padding: '12px 0',
+      <div className="sidebar-content" style={{
+        padding: '0',
         height: 'calc(100vh - 112px)',
         overflow: 'auto',
-        fontSize: '12px'
+        backgroundColor: '#fafafa',
+        borderRight: '1px solid #e8e8e8'
       }}>
-        <div style={{ padding: '0 12px' }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 12px 12px 12px',
+          borderBottom: '1px solid #e8e8e8',
+          backgroundColor: '#fff',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <ApartmentOutlined style={{ 
+              marginRight: '8px', 
+              color: '#1890ff',
+              fontSize: '14px' 
+            }} />
+            <Text strong style={{ 
+              fontSize: '13px',
+              color: '#262626'
+            }}>
+              {t('docs.databaseSchema')}
+            </Text>
+          </div>
+          
           <Input
-            placeholder="Search tables, fields..."
-            style={{ marginBottom: '12px' }}
-            prefix={<SearchOutlined />}
+            placeholder={t('docs.searchTables')}
+            style={{ 
+              marginBottom: '8px',
+              borderRadius: '6px',
+              fontSize: '12px'
+            }}
+            prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
             size="small"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          
+          {/* Stats */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            fontSize: '11px',
+            color: '#8c8c8c'
+          }}>
+            <span>
+              <TableOutlined style={{ marginRight: '4px' }} />
+              {tableStats.tableCount} {t('docs.tables')}
+            </span>
+            <span>
+              <FieldNumberOutlined style={{ marginRight: '4px' }} />
+              {tableStats.fieldCount} {t('docs.fields')}
+            </span>
+          </div>
         </div>
 
-        <div style={{ marginTop: '12px', fontSize: '11px' }}>
-          {filteredSchemaStructure.map((schema, schemaIndex) => (
-            <div key={`schema-${schemaIndex}`}>
-              <div
-                style={{
-                  padding: '4px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  backgroundColor: '#f5f5f5'
-                }}
-                onClick={() => toggleSchemaExpansion(schemaIndex)}
-              >
-                <CaretDownOutlined
+        {/* Schema Content */}
+        <div style={{ padding: '8px 0' }}>
+          {filteredSchemaStructure.length === 0 ? (
+            <div style={{ 
+              padding: '24px 12px', 
+              textAlign: 'center',
+              color: '#8c8c8c',
+              fontSize: '12px'
+            }}>
+              <FileOutlined style={{ fontSize: '24px', marginBottom: '8px', display: 'block' }} />
+              {t('docs.noTablesFound')}
+            </div>
+          ) : (
+            filteredSchemaStructure.map((schema, schemaIndex) => (
+              <div key={`schema-${schemaIndex}`} style={{ marginBottom: '8px' }}>
+                {/* Schema Header */}
+                <div
                   style={{
-                    marginRight: '6px',
-                    fontSize: '9px',
-                    transform: schema.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                    transition: 'transform 0.2s'
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: selectedSchemaName === schema.name && !selectedTable ? '#e6f7ff' : '#fff',
+                    borderLeft: '3px solid #1890ff',
+                    margin: '0 4px',
+                    borderRadius: '0 4px 4px 0',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
                   }}
-                />
-                <Text strong style={{ fontSize: '11px' }}>{schema.name}</Text>
-              </div>
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f6f6f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = selectedSchemaName === schema.name && !selectedTable ? '#e6f7ff' : '#fff';
+                  }}
+                >
+                  <div
+                    style={{
+                      marginRight: '8px',
+                      fontSize: '10px',
+                      color: '#1890ff',
+                      transform: schema.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                      transition: 'transform 0.2s ease',
+                      cursor: 'pointer',
+                      display: 'inline-block'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSchemaExpansion(schemaIndex);
+                    }}
+                  >
+                    <CaretDownOutlined />
+                  </div>
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      flex: 1,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSchemaSelect(schema.name)}
+                  >
+                    <DatabaseOutlined style={{ 
+                      marginRight: '6px', 
+                      color: '#1890ff',
+                      fontSize: '12px' 
+                    }} />
+                    <Text strong style={{ 
+                      fontSize: '12px',
+                      color: '#262626'
+                    }}>
+                      {schema.name}(dbdocs)
+                    </Text>
+                  </div>
+                  <span style={{
+                    marginLeft: 'auto',
+                    fontSize: '11px',
+                    color: '#8c8c8c',
+                    backgroundColor: '#f0f0f0',
+                    padding: '2px 6px',
+                    borderRadius: '8px'
+                  }}>
+                    {schema.tables.length}
+                  </span>
+                </div>
 
-              {schema.isExpanded && schema.tables.map((table, tableIndex) => (
-                <div key={`table-${schemaIndex}-${tableIndex}`}>
-                  <Tooltip title={table.note || `Table: ${table.name}`} placement="right">
-                    <div
-                      style={{
-                        padding: '4px 12px',
-                        paddingLeft: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                        backgroundColor: searchTerm && table.name.toLowerCase().includes(searchTerm.toLowerCase())
-                          ? '#e6f7ff'
-                          : 'transparent'
-                      }}
-                      onClick={() => toggleTableExpansion(schemaIndex, tableIndex)}
-                    >
-                      <CaretDownOutlined
-                        style={{
-                          marginRight: '6px',
-                          fontSize: '9px',
-                          transform: table.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                          transition: 'transform 0.2s'
-                        }}
-                      />
-                      <Text strong style={{ fontSize: '11px' }}>{table.name}</Text>
-                    </div>
-                  </Tooltip>
-
-                  {table.isExpanded && table.columns.map((column, columnIndex) => (
-                    <Tooltip
-                      key={`column-${schemaIndex}-${tableIndex}-${columnIndex}`}
-                      title={
-                        <div>
-                          <div><strong>Name:</strong> {column.name}</div>
-                          <div><strong>Type:</strong> {column.type}</div>
-                          {column.note && <div><strong>Note:</strong> {column.note}</div>}
-                        </div>
-                      }
-                      placement="right"
-                    >
+                                {/* Tables */}
+                {schema.isExpanded && schema.tables.map((table, tableIndex) => (
+                  <div key={`table-${schemaIndex}-${tableIndex}`} style={{ marginLeft: '8px' }}>
+                    <Tooltip title={table.note || `Table: ${table.name}`} placement="right">
                       <div
                         style={{
-                          padding: '3px 6px 3px 0',
-                          paddingLeft: '42px',
+                          padding: '6px 12px',
+                          paddingLeft: '20px',
                           display: 'flex',
                           alignItems: 'center',
-                          backgroundColor: searchTerm && column.name.toLowerCase().includes(searchTerm.toLowerCase())
+                          backgroundColor: searchTerm && table.name.toLowerCase().includes(searchTerm.toLowerCase())
                             ? '#e6f7ff'
-                            : 'transparent'
+                            : (selectedTable && selectedTable.name === table.name ? '#e6f7ff' : '#fff'),
+                          borderLeft: '2px solid #52c41a',
+                          margin: '2px 4px 2px 12px',
+                          borderRadius: '0 4px 4px 0',
+                          transition: 'all 0.2s ease',
+                          fontSize: '12px'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!searchTerm || !table.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                            e.currentTarget.style.backgroundColor = '#f6f6f6';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!searchTerm || !table.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                            e.currentTarget.style.backgroundColor = selectedTable && selectedTable.name === table.name ? '#e6f7ff' : '#fff';
+                          }
                         }}
                       >
-                        <span style={{ marginRight: '4px', fontSize: '10px', color: '#999' }}>□</span>
-                        <Text style={{ fontSize: '11px' }}>{column.name}</Text>
-                        <Text style={{ fontSize: '10px', color: '#999', marginLeft: '4px' }}>({column.type})</Text>
+                        <div
+                          style={{
+                            marginRight: '6px',
+                            fontSize: '9px',
+                            color: '#52c41a',
+                            transform: table.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                            transition: 'transform 0.2s ease',
+                            cursor: 'pointer',
+                            display: 'inline-block'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTableExpansion(schemaIndex, tableIndex);
+                          }}
+                        >
+                          <CaretDownOutlined />
+                        </div>
+                        <div 
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            flex: 1,
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => handleTableSelect(table, schema.name)}
+                        >
+                          <TableOutlined style={{ 
+                            marginRight: '6px', 
+                            color: '#52c41a',
+                            fontSize: '11px' 
+                          }} />
+                          <Text strong style={{ 
+                            fontSize: '11px',
+                            color: '#262626',
+                            flex: 1
+                          }}>
+                            {table.name}
+                          </Text>
+                        </div>
+                        <span style={{
+                          fontSize: '10px',
+                          color: '#8c8c8c',
+                          backgroundColor: '#f0f0f0',
+                          padding: '1px 4px',
+                          borderRadius: '6px'
+                        }}>
+                          {table.columns.length}
+                        </span>
                       </div>
                     </Tooltip>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ))}
+
+                    {/* Columns */}
+                    {table.isExpanded && table.columns.map((column, columnIndex) => (
+                      <Tooltip
+                        key={`column-${schemaIndex}-${tableIndex}-${columnIndex}`}
+                        title={
+                          <div style={{ fontSize: '11px' }}>
+                            <div><strong>Name:</strong> {column.name}</div>
+                            <div><strong>Type:</strong> {column.type}</div>
+                            {column.note && <div><strong>Note:</strong> {column.note}</div>}
+                          </div>
+                        }
+                        placement="right"
+                      >
+                        <div
+                          style={{
+                            padding: '4px 12px',
+                            paddingLeft: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            backgroundColor: searchTerm && column.name.toLowerCase().includes(searchTerm.toLowerCase())
+                              ? '#e6f7ff'
+                              : 'transparent',
+                            margin: '1px 4px 1px 20px',
+                            borderRadius: '4px',
+                            transition: 'background-color 0.2s ease',
+                            cursor: 'default'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!searchTerm || !column.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                              e.currentTarget.style.backgroundColor = '#f9f9f9';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!searchTerm || !column.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          {getColumnIcon(column.type, column.name)}
+                          <Text style={{ 
+                            fontSize: '11px',
+                            marginLeft: '6px',
+                            color: '#595959',
+                            flex: 1
+                          }}>
+                            {column.name}
+                          </Text>
+                          <Text style={{ 
+                            fontSize: '10px', 
+                            color: '#8c8c8c',
+                            backgroundColor: '#f5f5f5',
+                            padding: '1px 4px',
+                            borderRadius: '4px',
+                            fontFamily: 'Monaco, Consolas, monospace'
+                          }}>
+                            {column.type}
+                          </Text>
+                        </div>
+                      </Tooltip>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -1639,7 +2410,7 @@ const DocumentationPage: React.FC = () => {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className="documentation-page" style={{ minHeight: '100vh' }}>
       <Header style={{
         background: '#fff',
         padding: '0 16px',
@@ -1653,27 +2424,27 @@ const DocumentationPage: React.FC = () => {
         zIndex: 1000
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/')}
+            style={{ marginRight: '12px' }}
+          />
           <div
+            className="header-logo"
             style={{
-              width: '32px',
-              height: '32px',
-              backgroundColor: '#ff5252',
-              borderRadius: '4px',
+              marginRight: '12px',
+              cursor: 'pointer',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: 'bold',
-              marginRight: '8px',
-              cursor: 'pointer'
+              alignItems: 'center'
             }}
             onClick={() => navigate('/')}
           >
-            <span>V</span>
+            <Logo variant="icon" width={80} height={32} />
           </div>
           <div>
-            <Text strong style={{ fontSize: '16px', marginRight: '10px', display: 'block' }}>{project?.projectName || 'Project 1'}</Text>
-            <Text style={{ fontSize: '12px', color: '#888', display: 'block' }}>Code: {project?.projectCode || 'PRJ001'}</Text>
+            <Text strong style={{ fontSize: '16px', marginRight: '10px', display: 'block', fontFamily: 'Inter, sans-serif' }}>{project?.projectName || 'Project 1'}</Text>
+            <Text style={{ fontSize: '12px', color: '#888', display: 'block', fontFamily: 'Inter, sans-serif' }}>Code: {project?.projectCode || 'PRJ001'}</Text>
           </div>
         </div>
 
@@ -1692,10 +2463,40 @@ const DocumentationPage: React.FC = () => {
             shape="circle"
             style={{ marginRight: '8px' }}
           />
-          <Avatar
-            src= {creatorInfo?.avatarUrl}
-            style={{ cursor: 'pointer' }}
-          />
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'profile', icon: <UserOutlined />, label: t('homepage.profile') },
+                { 
+                  key: 'settings', 
+                  icon: <SettingOutlined />, 
+                  label: t('homepage.settings'),
+                  children: [
+                    { 
+                      key: 'theme', 
+                      icon: theme === 'light' ? <MoonOutlined /> : <SunOutlined />,
+                      label: theme === 'light' ? t('homepage.darkMode') : t('homepage.lightMode'),
+                      onClick: toggleTheme
+                    },
+                    { 
+                      key: 'language', 
+                      icon: <GlobalOutlined />,
+                      label: language === 'en' ? t('homepage.vietnamese') : t('homepage.english'),
+                      onClick: toggleLanguage
+                    }
+                  ]
+                },
+                { type: 'divider' },
+                { key: 'logout', icon: <LogoutOutlined />, label: t('homepage.logout'), danger: true }
+              ]
+            }}
+            trigger={['click']}
+          >
+            <Avatar
+              src={creatorInfo?.avatarUrl}
+              style={{ cursor: 'pointer' }}
+            />
+          </Dropdown>
         </div>
       </Header>
 
@@ -1732,7 +2533,7 @@ const DocumentationPage: React.FC = () => {
                   borderBottom: activeTab === 'wiki' ? '2px solid #1890ff' : 'none'
                 }}>
                   <BookOutlined style={{ marginRight: '6px' }} />
-                  Wiki
+                  {t('docs.wiki')}
                 </div>
               )
             },
@@ -1746,7 +2547,7 @@ const DocumentationPage: React.FC = () => {
                   borderBottom: activeTab === 'diagram' ? '2px solid #1890ff' : 'none'
                 }}>
                   <ProjectOutlined style={{ marginRight: '6px' }} />
-                  Diagram
+                  {t('docs.diagram')}
                 </div>
               )
             },
@@ -1760,22 +2561,22 @@ const DocumentationPage: React.FC = () => {
                   borderBottom: activeTab === 'changelog' ? '2px solid #1890ff' : 'none'
                 }}>
                   <HistoryOutlined style={{ marginRight: '6px' }} />
-                  Changelog
+                  {t('docs.changelog')}
                 </div>
               )
             }
           ]}
+          key={language} // Force re-render on language change
         />
       </div>
 
       <Layout style={{ background: '#fff', display: 'flex', flexDirection: 'row' }}>
         {/* Sidebar with schema and table structure */}
         <div style={{
-          width: '180px',
-          minWidth: '180px',
-          borderRight: '1px solid #f0f0f0',
+          width: '260px',
+          minWidth: '260px',
           height: 'calc(100vh - 112px)',
-          overflow: 'auto'
+          overflow: 'hidden'
         }}>
           {renderSidebar()}
         </div>
@@ -1784,8 +2585,8 @@ const DocumentationPage: React.FC = () => {
         <Content style={{ height: 'calc(100vh - 112px)', overflow: 'auto', padding: '16px', flex: 1 }}>
           {activeTab === 'wiki' &&
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-                <Text style={{ marginRight: '4px', fontSize: '13px' }}>
+              <div className="project-breadcrumb" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                <Text style={{ marginRight: '4px' }}>
                   <Text strong>{project?.ownerEmail || 'unknown'}</Text>/<Text strong>{project?.projectCode || 'Project'}</Text>
                 </Text>
               </div>

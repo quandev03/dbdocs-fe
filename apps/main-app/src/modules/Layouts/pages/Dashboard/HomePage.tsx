@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Input, Table, Dropdown, Menu, Typography, Avatar, Space, Layout, Badge, Tooltip, Spin, Empty, Modal, Form, message } from 'antd';
 import type { Breakpoint } from 'antd/es/_util/responsiveObserver';
+import type { AlignType } from 'rc-table/lib/interface';
 import { 
   PlusOutlined, 
   SearchOutlined, 
@@ -15,12 +16,19 @@ import {
   MenuFoldOutlined,
   QuestionCircleOutlined,
   LogoutOutlined,
-  SettingOutlined
+  SettingOutlined,
+  SunOutlined,
+  MoonOutlined,
+  GlobalOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useTheme } from '../../../../contexts/ThemeContext';
+import { useLanguage } from '../../../../contexts/LanguageContext';
 import AuthRedirect from '../../../../components/AuthRedirect';
 import { apiService } from '../../../../services/apiService';
+
+import Logo from '../../../../components/common/Logo';
 import '../../../Layouts/styles/Dashboard.css';
 
 const { Header, Content } = Layout;
@@ -43,7 +51,18 @@ interface Project {
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [searchText, setSearchText] = useState('');
+  const { theme, toggleTheme } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
+
+  // Debug: Log language changes
+  console.log('HomePage render - current language:', language);
+  console.log('Sample translation:', t('homepage.title'));
+
+  // Track language changes
+  useEffect(() => {
+    console.log('Language changed to:', language);
+  }, [language]);
+
   const [projectSearchText, setProjectSearchText] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [activeMenuItem, setActiveMenuItem] = useState('my-projects');
@@ -56,9 +75,9 @@ const HomePage: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createProjectForm] = Form.useForm();
   const [projectSubmitting, setProjectSubmitting] = useState(false);
-
-  console.log('Current user information:', user);
-
+  
+  console.log('Current user information (HomePage):', user);
+  
   // Fetch projects from API
   const fetchProjects = async () => {
     setLoading(true);
@@ -118,38 +137,43 @@ const HomePage: React.FC = () => {
       minute: '2-digit'
     }).format(date);
   };
-
-  // Get user avatar display
-  const getUserAvatar = () => {
+  
+  // Get user avatar for a given user object or owner information
+  const getUserAvatarByInfo = (name?: string, email?: string, avatarUrl?: string) => {
     // If user has an avatar URL
-    if (user?.avatarUrl) {
-      return <Avatar src={user.avatarUrl} />;
+    if (avatarUrl) {
+      return <Avatar src={avatarUrl} />;
     }
     
     // If user has a name, use first letter
-    if (user?.name) {
+    if (name) {
       return (
         <Avatar style={{ backgroundColor: '#1890ff' }}>
-          {user.name[0].toUpperCase()}
+          {name[0].toUpperCase()}
         </Avatar>
       );
     }
     
     // If user has email, use first letter of email
-    if (user?.email) {
+    if (email) {
       return (
         <Avatar style={{ backgroundColor: '#1890ff' }}>
-          {user.email[0].toUpperCase()}
+          {email[0].toUpperCase()}
         </Avatar>
       );
     }
     
     // Default avatar
     return (
-      <Avatar style={{ backgroundColor: '#1890ff' }}>
+      <Avatar style={{ backgroundColor: '#87d068' }}>
         <UserOutlined />
       </Avatar>
     );
+  };
+  
+  // Get user avatar display for logged in user
+  const getUserAvatar = () => {
+    return getUserAvatarByInfo(user?.name, user?.email, user?.avatarUrl);
   };
 
   // Get user display name
@@ -167,21 +191,50 @@ const HomePage: React.FC = () => {
     setCreateModalVisible(true);
   };
 
+  const handleViewProject = (projectId: string) => {
+    // Navigate to project details page
+    navigate(`/projects/${projectId}`);
+  };
+
+  const handleMenuItemClick = (menuKey: string) => {
+    setActiveMenuItem(menuKey);
+    
+    // Handle navigation based on menu item
+    switch(menuKey) {
+      case 'api-tokens':
+        navigate('/settings/api-tokens');
+        break;
+      case 'shared':
+        navigate('/share');
+        break;
+      case 'my-projects':
+        navigate('/');
+        break;
+      default:
+        // Default behavior stays on the current page
+        break;
+    }
+  };
+
+  const toggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+  };
+
+  const handleLogout = () => {
+    if (logout) {
+      logout();
+      navigate('/login');
+    }
+  };
+
   // Submit create project form
   const handleCreateProjectSubmit = async (values: any) => {
     setProjectSubmitting(true);
     try {
-      // Set default values for passwordShare and visibility
-      const projectData = {
-        ...values,
-        passwordShare: null,  // Default to null
-        visibility: 2         // Default to 2
-      };
-      
-      console.log('Creating project with values:', projectData);
+      console.log('Creating project with values:', values);
       
       // Call API to create project
-      const response = await apiService.post('/api/v1/projects', projectData);
+      const response = await apiService.post('/api/v1/projects', values);
       console.log('Project created:', response);
       
       // Clear form and close modal
@@ -205,123 +258,48 @@ const HomePage: React.FC = () => {
     setCreateModalVisible(false);
   };
 
-  const handleViewProject = (projectId: string) => {
-    // Navigate to project details page
-    //navigate(`/projects/${projectId}`);
-  };
-
-  const handleMenuItemClick = (menuKey: string) => {
-    setActiveMenuItem(menuKey);
-    
-    // Handle navigation based on menu item
-    switch(menuKey) {
-      case 'api-tokens':
-        navigate('/settings/api-tokens');
-        break;
-      case 'shared':
-        navigate('/share');
-        break;
-      default:
-        // Default behavior stays on the current page
-        break;
-    }
-  };
-
-  const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
-  };
-
-  const handleLogout = () => {
-    if (logout) {
-      logout();
-      navigate('/login');
-    }
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    setLoading(true);
-    try {
-      // Gọi API xoá
-      await apiService.delete(`/api/v1/projects/${projectId}`);
-  
-      // Xoá khỏi state ngay lập tức để UI cập nhật nhanh
-      setProjects(prev => prev.filter(p => p.projectId !== projectId));
-  
-      Modal.success({
-        title: 'Success',
-        content: 'Project deleted successfully',
-      });
-  
-      // Gọi lại fetchProjects để đồng bộ (nếu lỗi chỉ cảnh báo nhỏ)
-      try {
-        await fetchProjects();
-      } catch (fetchErr) {
-        console.error('Error refreshing projects list:', fetchErr);
-        message.warning('Project was deleted but the list could not be refreshed.');
-      }
-    } catch (err: any) {
-      console.error('Error deleting project:', err);
-      
-      // Hiển thị thông báo lỗi chi tiết hơn
-      let errorMessage = 'Failed to delete project';
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
-      Modal.error({
-        title: 'Error',
-        content: errorMessage,
-      });
-      
-      // Gọi lại fetchProjects để đảm bảo UI đồng bộ với server
-      try {
-        await fetchProjects();
-      } catch (fetchErr) {
-        console.error('Error refreshing projects after delete failure:', fetchErr);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const columns = [
+  // Define columns with useMemo to recalculate when language changes
+  const columns = useMemo(() => [
     {
-      title: 'Name project',
+      title: t('homepage.nameProject'),
       dataIndex: 'projectCode',
       key: 'projectCode',
+      align: 'center' as AlignType,
       render: (text: string, record: Project) => (
         <span className="project-name">{text}</span>
       )
     },
     {
-      title: 'Description',
+      title: t('homepage.description'),
       dataIndex: 'description',
       key: 'description',
-      responsive: ['md' as Breakpoint]
+      responsive: ['md' as Breakpoint],
+      align: 'center' as AlignType,
     },
     {
-      title: 'Last modified',
+      title: t('homepage.lastModified'),
       dataIndex: 'modifiedDate',
       key: 'modifiedDate',
       responsive: ['lg' as Breakpoint],
+      align: 'center' as AlignType,
       render: (text: string | null, record: Project) => 
         formatDate(record.modifiedDate || record.createdDate)
     },
     {
-      title: 'Created at',
+      title: t('homepage.createdAt'),
       dataIndex: 'createdDate',
       key: 'createdDate',
       responsive: ['xl' as Breakpoint],
+      align: 'center' as AlignType,
       render: (text: string) => formatDate(text)
     },
     {
       title: '',
       key: 'actions',
+      align: 'center' as AlignType,
       render: (_: any, record: Project) => (
         <Space className="action-buttons">
-          <Tooltip title="Edit">
+          <Tooltip title={t('homepage.edit')}>
             <Button 
               type="text" 
               icon={<EditOutlined />} 
@@ -332,7 +310,7 @@ const HomePage: React.FC = () => {
               }} 
             />
           </Tooltip>
-          <Tooltip title="View Docs">
+          <Tooltip title={t('homepage.viewDocs')}>
             <Button 
               type="text" 
               icon={<BookOutlined />} 
@@ -346,14 +324,10 @@ const HomePage: React.FC = () => {
           <Dropdown 
             menu={{
               items: [
-                { key: '1', icon: <SearchOutlined />, label: 'View details' },
-                { key: '2', icon: <EditOutlined />, label: 'Rename' },
+                { key: '1', icon: <SearchOutlined />, label: t('homepage.viewDetails') },
+                { key: '2', icon: <EditOutlined />, label: t('homepage.rename') },
                 { type: 'divider' },
-                { key: '3', icon: <LogoutOutlined />, label: 'Delete', danger: true, 
-                  onClick: () => {
-                    handleDeleteProject(record.projectId);
-                  }
-                }
+                { key: '3', icon: <LogoutOutlined />, label: t('homepage.delete'), danger: true }
               ]
             }}
             trigger={['click']}
@@ -368,7 +342,7 @@ const HomePage: React.FC = () => {
         </Space>
       ),
     },
-  ];
+  ], [t, navigate]);
 
   const DashboardContent = () => (
     <div className="dashboard-container">
@@ -383,20 +357,15 @@ const HomePage: React.FC = () => {
               style={{ marginRight: '16px' }}
             />
           )}
-          <div className="logo-text" onClick={() => navigate('/')}>DBDocs</div>
+          <div className="logo-container" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <Logo variant="full" width={100} height={60} />
+          </div>
         </div>
         
-        <Input 
-          className="search-header-input"
-          placeholder="Search diagram" 
-          prefix={<SearchOutlined />} 
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          style={{ width: windowWidth <= 768 ? '150px' : '300px', margin: '0 20px' }}
-        />
+        <div style={{ flex: 1 }} />
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Tooltip title="Help">
+          <Tooltip title={t('homepage.help')}>
             <Button 
               type="text" 
               icon={<QuestionCircleOutlined />} 
@@ -408,10 +377,35 @@ const HomePage: React.FC = () => {
           <Dropdown
             menu={{
               items: [
-                { key: 'profile', icon: <UserOutlined />, label: 'Profile' },
-                { key: 'settings', icon: <SettingOutlined />, label: 'Settings' },
+                { key: 'profile', icon: <UserOutlined />, label: t('homepage.profile') },
+                { 
+                  key: 'settings', 
+                  icon: <SettingOutlined />, 
+                  label: t('homepage.settings'),
+                  children: [
+                    { 
+                      key: 'theme', 
+                      icon: theme === 'light' ? <MoonOutlined /> : <SunOutlined />,
+                      label: theme === 'light' ? t('homepage.darkMode') : t('homepage.lightMode'),
+                      onClick: toggleTheme
+                    },
+                    { 
+                      key: 'language', 
+                      icon: <GlobalOutlined />,
+                      label: language === 'en' ? t('homepage.vietnamese') : t('homepage.english'),
+                      onClick: toggleLanguage
+                    },
+                    { type: 'divider' },
+                    { 
+                      key: 'api-tokens', 
+                      icon: <KeyOutlined />, 
+                      label: t('homepage.apiTokens'),
+                      onClick: () => handleMenuItemClick('api-tokens')
+                    }
+                  ]
+                },
                 { type: 'divider' },
-                { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true, onClick: handleLogout }
+                { key: 'logout', icon: <LogoutOutlined />, label: t('homepage.logout'), danger: true, onClick: handleLogout }
               ]
             }}
             trigger={['click']}
@@ -429,72 +423,75 @@ const HomePage: React.FC = () => {
       </Header>
       
       <div className={`left-sidebar ${sidebarVisible ? 'visible' : ''}`}>
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'new-project' ? 'menu-item-active' : ''}`}
-          onClick={() => {
-            handleMenuItemClick('new-project');
-            handleCreateProject();
-          }}
-        >
-          <div className="sidebar-icon">
-            <PlusOutlined />
+        <div className="sidebar-section">
+          <div 
+            className={`sidebar-menu-item new-project-item ${activeMenuItem === 'new-project' ? 'menu-item-active' : ''}`}
+            onClick={() => {
+              handleMenuItemClick('new-project');
+              handleCreateProject();
+            }}
+          >
+            <div className="sidebar-icon">
+              <PlusOutlined />
+            </div>
+            <span>{t('homepage.newProject')}</span>
           </div>
-          New Project
         </div>
         
         <div className="sidebar-divider" />
         
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('my-projects')}
-        >
-          <div className="sidebar-icon">
-            <StarFilled className="star-icon" />
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">{t('homepage.projectsSection').toUpperCase()}</div>
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('my-projects')}
+          >
+            <div className="sidebar-icon">
+              <StarFilled className="star-icon" />
+            </div>
+            <span>{t('homepage.myProjects')}</span>
           </div>
-          My Projects
-        </div>
-        
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('shared')}
-        >
-          <div className="sidebar-icon">
-            <ShareAltOutlined />
+          
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('shared')}
+          >
+            <div className="sidebar-icon">
+              <ShareAltOutlined />
+            </div>
+            <span>{t('homepage.sharedWithMe')}</span>
           </div>
-          <span>Shared with me</span>
         </div>
         
         <div className="sidebar-divider" />
         
-        <div 
-          className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
-          onClick={() => handleMenuItemClick('api-tokens')}
-        >
-          <div className="sidebar-icon">
-            <KeyOutlined />
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">{t('homepage.settingsSection').toUpperCase()}</div>
+          <div 
+            className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
+            onClick={() => handleMenuItemClick('api-tokens')}
+          >
+            <div className="sidebar-icon">
+              <KeyOutlined />
+            </div>
+            <span>{t('homepage.apiTokens')}</span>
           </div>
-          <span>API Tokens</span>
         </div>
       </div>
       
       <div className="content-wrapper">
-        <div className="fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <Title level={4} style={{ margin: 0 }}>Projects</Title>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={handleCreateProject}
-            className="new-project-button"
-          >
-            New Project
-          </Button>
+        <div className="fade-in page-header">
+          <div>
+            <h1 className="page-title">{t('homepage.projectsTitle')}</h1>
+            <p className="page-subtitle">{t('homepage.projectsSubtitle')}</p>
+          </div>
         </div>
         
         <div className="project-list-container fade-in">
           <div className="table-header">
-            <Typography.Text strong>All Projects ({loading ? '...' : filteredProjects.length})</Typography.Text>
+            <Typography.Text strong>{t('homepage.allProjects')} ({loading ? '...' : filteredProjects.length})</Typography.Text>
             <Input 
-              placeholder="Search projects" 
+              placeholder={t('homepage.searchProjects')} 
               prefix={<SearchOutlined />} 
               style={{ width: 200 }}
               value={projectSearchText}
@@ -505,8 +502,7 @@ const HomePage: React.FC = () => {
           
           {loading ? (
             <div className="loading-container">
-              <Spin />
-              <div style={{ marginTop: '10px' }}>Loading projects...</div>
+              <Spin tip={t('homepage.loadingProjects')} />
             </div>
           ) : error ? (
             <div className="error-container">
@@ -530,12 +526,13 @@ const HomePage: React.FC = () => {
                 className: 'project-row'
               })}
               className="fade-in"
+              key={language} // Force re-render on language change
             />
           ) : (
             <div className="empty-state">
               <Empty description={
                 <span>
-                  {projectSearchText ? 'No projects match your search' : 'No projects found'}
+                  {projectSearchText ? t('homepage.noProjectsSearch') : t('homepage.noProjectsFound')}
                 </span>
               } />
             </div>
@@ -556,7 +553,7 @@ const HomePage: React.FC = () => {
       
       {/* Create Project Modal */}
       <Modal
-        title={<div style={{ textAlign: 'center', color: '#1890ff' }}>Create New Project</div>}
+        title={t('homepage.createNewProject')}
         open={createModalVisible}
         onCancel={handleCancelCreate}
         footer={null}
@@ -575,20 +572,20 @@ const HomePage: React.FC = () => {
         >
           <Form.Item
             name="projectCode"
-            label="Project Code"
+            label={t('homepage.projectCode')}
             rules={[
-              { required: true, message: 'Please enter project code' },
-              { min: 3, message: 'Project code must be at least 3 characters' },
-              { max: 15, message: 'Project code cannot exceed 15 characters' },
+              { required: true, message: t('homepage.pleaseEnterProjectCode') },
+              { min: 3, message: t('homepage.projectCodeMinLength') },
+              { max: 15, message: t('homepage.projectCodeMaxLength') },
               { 
                 pattern: /^[a-zA-Z0-9_-]+$/, 
-                message: 'Project code can only contain letters, numbers, underscores and hyphens' 
+                message: t('homepage.projectCodePattern')
               }
             ]}
-            tooltip="Project code must be 3-15 characters with no spaces or special characters"
+            tooltip={t('homepage.projectCodeTooltip')}
           >
             <Input 
-              placeholder="Enter project code" 
+              placeholder={t('homepage.enterProjectCode')} 
               maxLength={15} 
               style={{ width: '100%' }}
             />
@@ -596,14 +593,14 @@ const HomePage: React.FC = () => {
           
           <Form.Item
             name="description"
-            label="Description"
+            label={t('homepage.description')}
             rules={[
-              { required: true, message: 'Please enter project description' }
+              { required: true, message: t('homepage.pleaseEnterDescription') }
             ]}
             style={{ marginBottom: '30px' }}
           >
             <Input.TextArea 
-              placeholder="Enter project description" 
+              placeholder={t('homepage.enterProjectDescription')} 
               rows={4}
               showCount 
               maxLength={200}
@@ -620,14 +617,14 @@ const HomePage: React.FC = () => {
               marginBottom: '10px'
             }}>
               <Button onClick={handleCancelCreate}>
-                Cancel
+                {t('homepage.cancel')}
               </Button>
               <Button 
                 type="primary" 
                 htmlType="submit" 
                 loading={projectSubmitting}
               >
-                Create Project
+                {t('homepage.createProject')}
               </Button>
             </div>
           </Form.Item>

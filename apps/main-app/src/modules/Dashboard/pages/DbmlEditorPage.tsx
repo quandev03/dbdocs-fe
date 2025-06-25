@@ -21,7 +21,8 @@ import {
   DeleteOutlined,
   MoreOutlined,
   UserOutlined,
-  BookOutlined
+  BookOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../../services/apiService';
@@ -30,6 +31,10 @@ import { checkProjectPermission, PermissionLevel, getPermissionText } from '../s
 import { getProjectVersions, VersionInfo } from '../services/changelog.service';
 import useWindowSize from '../../../hooks/useWindowSize';
 import moment from 'moment';
+import Logo from '../../../components/common/Logo';
+import SettingsPopup from '../../../components/SettingsPopup';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import './EditorPage.css';
 
 const { Header, Content } = Layout;
@@ -145,6 +150,8 @@ export const DbmlEditorPage: React.FC = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { width } = useWindowSize();
+  const { theme } = useTheme();
+  const { t } = useLanguage();
   const [pendingDbmlChange, setPendingDbmlChange] = useState<string | null>(null);
   const [confirmModalVisible, setConfirmModalVisible] = useState<boolean>(false);
   const [selectedChangelog, setSelectedChangelog] = useState<ChangelogItem | null>(null);
@@ -821,18 +828,27 @@ export const DbmlEditorPage: React.FC = () => {
     <Layout className="dbml-editor-layout">
       <Header className="editor-header">
         <div className="editor-header-left">
+          <SettingsPopup 
+            showExitButton={true} 
+            onExit={() => navigate('/')}
+            placement="bottomLeft"
+          >
+            <div className="editor-logo" style={{ cursor: 'pointer', marginRight: 16 }}>
+              <Logo variant="icon" width={96} height={96} />
+            </div>
+          </SettingsPopup>
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
             className="editor-back-btn"
           >
-            Back
+            {t('editor.back')}
           </Button>
           <div className="project-title">
             <Title level={4} style={{ margin: 0, marginLeft: 16 }}>{projectName}</Title>
             {permissionLevel === PermissionLevel.VIEW && (
-              <Tag color="blue" style={{ marginLeft: 8 }}>View Only</Tag>
+              <Tag color="blue" style={{ marginLeft: 8 }}>{t('editor.viewOnly')}</Tag>
             )}
           </div>
         </div>
@@ -847,7 +863,7 @@ export const DbmlEditorPage: React.FC = () => {
                 disabled={!hasChanges || loading}
                 className="editor-action-btn"
               >
-                {showLabels && 'Save Changes'}
+                {showLabels && t('editor.saveChanges')}
               </Button>
               <Divider type="vertical" style={{ height: 24, margin: '0 8px' }} />
             </Space>
@@ -860,7 +876,7 @@ export const DbmlEditorPage: React.FC = () => {
                 onClick={handleHistoryClick}
                 className="editor-action-btn"
               >
-                {showLabels && 'History'}
+                {showLabels && t('editor.history')}
               </Button>
             </Tooltip>
 
@@ -869,19 +885,19 @@ export const DbmlEditorPage: React.FC = () => {
                 items: [
                   {
                     key: 'dbml',
-                    label: 'Download DBML',
+                    label: t('editor.downloadDbml'),
                     icon: <DownloadOutlined />,
                     onClick: handleDownload
                   },
                   {
                     key: 'copy',
-                    label: 'Copy DBML',
+                    label: t('editor.copyDbml'),
                     icon: <CopyOutlined />,
                     onClick: handleCopyCode
                   },
                   {
                     key: 'ddl',
-                    label: 'Export SQL DDL',
+                    label: t('editor.exportSqlDdl'),
                     icon: <DatabaseOutlined />,
                     onClick: handleExportDDLClick
                   }
@@ -892,7 +908,7 @@ export const DbmlEditorPage: React.FC = () => {
               <Button className="editor-action-btn">
                 <Space>
                   <ExportOutlined />
-                  {showLabels && 'Export'}
+                  {showLabels && t('editor.export')}
                   <DownOutlined style={{ fontSize: 12 }} />
                 </Space>
               </Button>
@@ -904,7 +920,7 @@ export const DbmlEditorPage: React.FC = () => {
                 onClick={handleShareClick}
                 className="editor-action-btn"
               >
-                {showLabels && 'Share'}
+                {showLabels && t('editor.share')}
               </Button>
             </Tooltip>
 
@@ -917,7 +933,7 @@ export const DbmlEditorPage: React.FC = () => {
                 className="editor-action-btn"
                 style={{ backgroundColor: '#1677ff' }}
               >
-                {showLabels && 'Publish to dbdocs'}
+                {showLabels && t('editor.publishToDbdocs')}
               </Button>
             </Tooltip>
           </Space>
@@ -927,18 +943,18 @@ export const DbmlEditorPage: React.FC = () => {
       <Content className="editor-content">
         {loading ? (
           <div className="editor-loading">
-            <Spin size="large" tip="Loading editor..." />
+            <Spin size="large" tip={t('editor.loadingEditor')} />
           </div>
         ) : permissionLevel === PermissionLevel.DENIED ? (
           <div className="editor-denied">
             <Alert
-              message="Access Denied"
-              description="You don't have permission to view this project."
+              message={t('editor.accessDenied')}
+              description={t('editor.noPermission')}
               type="error"
               showIcon
               action={
                 <Button size="small" type="primary" onClick={handleBack}>
-                  Go Back
+                  {t('editor.goBack')}
                 </Button>
               }
             />
@@ -958,13 +974,13 @@ export const DbmlEditorPage: React.FC = () => {
 
             <div className="editor-toolbar">
               <div>
-                <Text strong>Version: </Text>
+                <Text strong>{t('editor.version')}: </Text>
                 <Select
                   value={currentVersion || undefined}
                   loading={loading}
                   style={{ width: 180 }}
                   onChange={handleVersionChange}
-                  placeholder="Select version"
+                  placeholder={t('editor.selectVersion')}
                 >
                   {versions.map(v => (
                     <Select.Option key={v.id} value={v.id}>
@@ -990,7 +1006,7 @@ export const DbmlEditorPage: React.FC = () => {
 
       {/* History Drawer */}
       <Drawer
-        title="Project History"
+        title={t('editor.projectHistory')}
         placement="right"
         width={500}
         open={historyDrawerVisible}
@@ -999,10 +1015,10 @@ export const DbmlEditorPage: React.FC = () => {
         {changelogLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <Spin />
-            <div style={{ marginTop: 16 }}>Loading history...</div>
+            <div style={{ marginTop: 16 }}>{t('editor.loadingHistory')}</div>
           </div>
         ) : changelogs.length === 0 ? (
-          <Empty description="No history records found" />
+          <Empty description={t('editor.noHistoryRecords')} />
         ) : (
           <List
             className="changelog-list"
@@ -1011,7 +1027,7 @@ export const DbmlEditorPage: React.FC = () => {
               <List.Item
                 className="changelog-item"
                 actions={[
-                  <Tooltip title="View this version">
+                  <Tooltip title={t('editor.viewThisVersion')}>
                     <Button
                       size="small"
                       icon={<BookOutlined />}
@@ -1030,13 +1046,13 @@ export const DbmlEditorPage: React.FC = () => {
                   }
                   title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>{item.creatorName || 'Unknown user'}</span>
+                      <span>{item.creatorName || t('editor.unknownUser')}</span>
                       <Text type="secondary" style={{ fontSize: '12px' }}>
                         {formatDate(item.createdDate)}
                       </Text>
                     </div>
                   }
-                  description={item.content || 'No description'}
+                  description={item.content || t('editor.noDescription')}
                 />
               </List.Item>
             )}
@@ -1046,11 +1062,11 @@ export const DbmlEditorPage: React.FC = () => {
 
       {/* Export DDL Modal */}
       <Modal
-        title="Generate SQL DDL"
+        title={t('editor.generateSqlDdl')}
         open={exportDDLModalVisible}
         onOk={exportAction === ExportAction.Download ? handleGenerateDDL : handleCopyDDL}
         onCancel={() => setExportDDLModalVisible(false)}
-        okText={exportAction === ExportAction.Download ? "Generate & Download" : "Copy to Clipboard"}
+        okText={exportAction === ExportAction.Download ? t('editor.generateDownload') : t('editor.copyToClipboard')}
         confirmLoading={generatingDDL}
         width={700}
       >
@@ -1074,8 +1090,8 @@ export const DbmlEditorPage: React.FC = () => {
 
           <div style={{ marginTop: '16px' }}>
             <Radio.Group onChange={handleExportActionChange} value={exportAction}>
-              <Radio value={ExportAction.Download}>Download SQL file</Radio>
-              <Radio value={ExportAction.Copy}>Copy to clipboard</Radio>
+              <Radio value={ExportAction.Download}>{t('editor.downloadSqlFile')}</Radio>
+              <Radio value={ExportAction.Copy}>{t('editor.copyToClipboard')}</Radio>
             </Radio.Group>
           </div>
 
@@ -1096,7 +1112,7 @@ export const DbmlEditorPage: React.FC = () => {
             )}
             {!currentVersion && !currentChangelogCode && (
               <Alert
-                message="Please select a version or changelog first"
+                message={t('editor.selectVersionFirst')}
                 type="warning"
                 showIcon
               />
@@ -1128,18 +1144,18 @@ export const DbmlEditorPage: React.FC = () => {
 
       {/* Confirmation Modal */}
       <Modal
-        title="Confirm Revert to Previous Changelog"
+        title={t('editor.confirmRevert')}
         open={confirmModalVisible}
         onOk={confirmChangelogRevert}
         onCancel={cancelChangelogRevert}
-        okText="Yes, revert to this version"
-        cancelText="Cancel"
+        okText={t('editor.yesRevert')}
+        cancelText={t('editor.cancel')}
       >
-        <p>Are you sure you want to revert to v{selectedChangelog?.codeChangeLog}?</p>
+        <p>{t('editor.confirmRevertText')}{selectedChangelog?.codeChangeLog}?</p>
         {hasChanges && (
           <Alert
-            message="Warning"
-            description="You have unsaved changes that will be lost if you revert to this change log."
+            message={t('editor.warning')}
+            description={t('editor.unsavedChanges')}
             type="warning"
             showIcon
             style={{ marginTop: 16 }}
@@ -1149,12 +1165,12 @@ export const DbmlEditorPage: React.FC = () => {
 
       {/* Share Modal */}
       <Modal
-        title="Share Project"
+        title={t('editor.shareProject')}
         open={shareModalVisible}
         onCancel={() => setShareModalVisible(false)}
         footer={[
           <Button key="cancel" onClick={() => setShareModalVisible(false)}>
-            Close
+            {t('editor.close')}
           </Button>
         ]}
         width={600}
@@ -1162,7 +1178,7 @@ export const DbmlEditorPage: React.FC = () => {
         <div>
           {permissionLevel === PermissionLevel.OWNER && (
             <>
-              <Typography.Title level={5}>Add People</Typography.Title>
+              <Typography.Title level={5}>{t('editor.addPeople')}</Typography.Title>
               <Form
                 form={form}
                 layout="vertical"
@@ -1179,18 +1195,18 @@ export const DbmlEditorPage: React.FC = () => {
                   >
                     <Input
                       prefix={<MailOutlined />}
-                      placeholder="Enter email or username"
+                      placeholder={t('editor.enterEmailUsername')}
                     />
                   </Form.Item>
 
                   <Form.Item
                     name="permission"
                     style={{ width: '120px', marginBottom: '10px' }}
-                    rules={[{ required: true, message: 'Required' }]}
+                    rules={[{ required: true, message: t('editor.required') }]}
                   >
                     <Select>
-                      <Select.Option value={PermissionLevel.VIEW}>View only</Select.Option>
-                      <Select.Option value={PermissionLevel.EDIT}>Edit</Select.Option>
+                      <Select.Option value={PermissionLevel.VIEW}>{t('editor.viewOnly')}</Select.Option>
+                      <Select.Option value={PermissionLevel.EDIT}>{t('editor.edit')}</Select.Option>
                     </Select>
                   </Form.Item>
 
@@ -1201,7 +1217,7 @@ export const DbmlEditorPage: React.FC = () => {
                       onClick={() => form.submit()}
                       icon={<UserAddOutlined />}
                     >
-                      Invite
+                      {t('editor.invite')}
                     </Button>
                   </Form.Item>
                 </div>
@@ -1211,11 +1227,11 @@ export const DbmlEditorPage: React.FC = () => {
             </>
           )}
 
-          <Typography.Title level={5}>People with Access</Typography.Title>
+          <Typography.Title level={5}>{t('editor.peopleWithAccess')}</Typography.Title>
 
           {loadingAccesses ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <Spin tip="Loading..." />
+              <Spin tip={t('editor.loading')} />
             </div>
           ) : (
             <List

@@ -63,8 +63,10 @@ const EditorContainer = styled.div`
   width: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #1e1e1e;
-  color: #fff;
+  background-color: #ffffff;
+  color: #1e293b;
+  border-radius: 12px;
+  overflow: hidden;
 `;
 
 const EditorPane = styled.div`
@@ -72,7 +74,7 @@ const EditorPane = styled.div`
   display: flex;
   overflow: hidden;
   position: relative;
-  background-color: #fff;
+  background-color: #ffffff;
   border: none;
   box-shadow: none;
 `;
@@ -84,8 +86,8 @@ const CodeEditorPane = styled.div<{ width: string }>`
   position: relative;
   transform-origin: left center;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  background-color: #fff;
-  border-right: 1px solid #e8e8e8;
+  background-color: #1e1e1e;
+  border-right: 1px solid #e8eef7;
 `;
 
 const StatusBar = styled.div`
@@ -93,64 +95,76 @@ const StatusBar = styled.div`
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: #f5f5f5;
-  color: #666;
-  padding: 2px 10px;
+  background-color: #1e1e1e;
+  color: #64748b;
+  padding: 4px 16px;
   font-size: 12px;
   z-index: 20;
   text-align: right;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid #374151;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
 `;
 
 const DiagramPane = styled.div<{ width: string }>`
   width: ${props => props.width};
   height: 100%;
   overflow: hidden;
-  background-color: #fff;
-  color: #333;
+  background-color: #f8fafc;
+  color: #1e293b;
   position: relative;
   transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   flex: ${props => props.width === '100%' ? 1 : 'none'};
-  border-left: 1px solid #e8e8e8;
+  border-left: 1px solid #e8eef7;
 `;
 
 const Resizer = styled.div`
   width: 10px;
   height: 100%;
-  background-color: #f5f5f5;
+  background-color: #e8eef7;
   cursor: col-resize;
   z-index: 30;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid #e8e8e8;
+  border-right: 1px solid #e8eef7;
+  transition: all 0.2s ease;
   &:hover {
-    background-color: #e8e8e8;
+    background-color: #4285f4;
+  }
+  &:hover::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 30px;
+    background-color: #ffffff;
+    border-radius: 1px;
   }
 `;
 
 const ToggleButton = styled.div`
   position: absolute;
-  height: 40px;
-  width: 26px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
+  height: 44px;
+  width: 32px;
+  background-color: #ffffff;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: #4285f4;
   cursor: pointer;
   z-index: 31;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease, background-color 0.3s ease;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.15);
+  border: 1px solid #e8eef7;
+  transition: all 0.2s ease;
   &:hover {
-    background-color: #e8e8e8;
-    color: #333;
-    transform: scale(1.1);
+    background-color: #4285f4;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(66, 133, 244, 0.25);
   }
   &:active {
-    transform: scale(0.95);
+    transform: translateY(0);
   }
 `;
 
@@ -159,7 +173,7 @@ const DiagramContainer = styled.div`
   width: 100%;
   height: 100%;
   overflow: auto;
-  background-color: #fff;
+  background-color: #f8fafc;
 `;
 
 const DiagramCanvas = styled.div<{ scale: number }>`
@@ -168,31 +182,42 @@ const DiagramCanvas = styled.div<{ scale: number }>`
   height: 3000px;
   transform-origin: 0 0;
   transform: scale(${props => props.scale});
-  background-color: #f8f8f8;
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 20px;
 `;
 
 const TableCard = styled.div<{ x: number; y: number }>`
   position: absolute;
   left: ${props => props.x}px;
   top: ${props => props.y}px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   width: 280px;
   cursor: move;
   z-index: 10;
+  border: 1px solid #e8eef7;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
 `;
 
 const TableHeader = styled.div<{ color?: string }>`
-  background: ${props => props.color || '#1890ff'};
+  background: ${props => props.color || '#4285f4'};
   color: white;
-  padding: 8px 12px;
-  font-weight: bold;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
+  padding: 12px 16px;
+  font-weight: 600;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 14px;
 `;
 
 const TableName = styled.div`
@@ -200,21 +225,23 @@ const TableName = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 `;
 
 const TableMenuButton = styled.div`
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: all 0.2s ease;
   cursor: pointer;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 6px;
 
   &:hover {
     background-color: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
   }
 `;
 
@@ -233,19 +260,36 @@ const TableContent = styled.div`
 const TableRow = styled.div<{ isEven: boolean }>`
   display: flex;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: ${props => props.isEven ? '#f9f9f9' : 'white'};
+  padding: 10px 16px;
+  border-bottom: 1px solid #e8eef7;
+  background-color: ${props => props.isEven ? '#f8fafc' : '#ffffff'};
+  transition: background-color 0.2s ease;
+  
+  &:hover {
+    background-color: #e8eef7;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
 `;
 
 const FieldName = styled.div`
   display: flex;
   align-items: center;
+  color: #1e293b;
+  font-weight: 500;
+  font-size: 13px;
 `;
 
 const FieldType = styled.div`
-  color: #666;
-  font-size: 0.9em;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 `;
 
 const RelationshipLine = styled.svg`
@@ -266,39 +310,58 @@ const RelationshipLine = styled.svg`
 
 const ZoomControls = styled.div`
   position: absolute;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   z-index: 20;
-  background-color: white;
-  padding: 8px;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: #ffffff;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e8eef7;
 
   .ant-btn {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    color: #4285f4;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    
+    &:hover {
+      background-color: #4285f4;
+      color: #ffffff;
+      border-color: #4285f4;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(66, 133, 244, 0.25);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
   }
 `;
 
 const MiniMap = styled.div`
   position: absolute;
-  bottom: 20px;
-  left: 20px;
-  width: 200px;
-  height: 150px;
-  background-color: white;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  bottom: 24px;
+  left: 24px;
+  width: 220px;
+  height: 160px;
+  background-color: #ffffff;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
   overflow: hidden;
   z-index: 20;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
 `;
 
 const MiniMapContent = styled.div`
@@ -315,8 +378,9 @@ const ViewportIndicator = styled.div<{x: number, y: number, width: number, heigh
   left: ${props => props.x}px;
   width: ${props => props.width}px;
   height: ${props => props.height}px;
-  border: 2px solid #1890ff;
-  background-color: rgba(24, 144, 255, 0.1);
+  border: 2px solid #4285f4;
+  background-color: rgba(66, 133, 244, 0.15);
+  border-radius: 4px;
 `;
 
 // Simple parser to extract table names and fields from DBML
@@ -561,21 +625,50 @@ export const DbmlEditor = React.forwardRef<
       if (!dbmlLanguageExists) {
         monacoInstance.languages.register({ id: 'dbml' });
 
-        // Register a tokens provider for the language
+        // Register a tokens provider for the language with custom colors
         monacoInstance.languages.setMonarchTokensProvider('dbml', {
           tokenizer: {
             root: [
-              [/Table|Ref|Project|TableGroup|enum/, "keyword"],
+              [/\b(Table|Ref|Project|TableGroup|enum)\b/, "keyword"],
+              [/\b(varchar|int|timestamp|boolean|text|longtext|date|json)\b/, "type"],
+              [/\b(note|pk|primary key|unique|not null|increment|default|ref)\b/, "predefined"],
+              [/'[^']*'/, "string"],
+              [/"[^"]*"/, "string"],
+              [/\{|\}|\[|\]/, "delimiter.bracket"],
+              [/[,;:]/, "delimiter"],
+              [/\/\/.*$/, "comment"],
               [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
-              [/varchar|int|timestamp|boolean|text|longtext/, "type"],
-              [/note:|pk|primary key|unique|not null|increment/, "predefined"],
-              [/".*?"/, "string"],
-              [/{|}|[|]|'|"|:|`/, "delimiter.bracket"],
-              [/\/\/.*/, "comment"],
+              [/\d+/, "number"],
             ],
           },
         });
+
+        // Define custom theme for DBML with dark colors matching the image
+        monacoInstance.editor.defineTheme('dbml-dark', {
+          base: 'vs-dark',
+          inherit: true,
+          rules: [
+            { token: 'keyword', foreground: '569CD6' }, // Light blue for Table, Ref, etc.
+            { token: 'type', foreground: '4EC9B0' }, // Teal for data types
+            { token: 'predefined', foreground: 'DCDCAA' }, // Yellow for note, pk, etc.
+            { token: 'string', foreground: 'CE9178' }, // Orange for strings
+            { token: 'comment', foreground: '6A9955' }, // Green for comments
+            { token: 'identifier', foreground: '9CDCFE' }, // Light blue for identifiers
+            { token: 'delimiter.bracket', foreground: 'D4D4D4' }, // Gray for brackets
+            { token: 'delimiter', foreground: 'D4D4D4' }, // Gray for delimiters
+            { token: 'number', foreground: 'B5CEA8' }, // Light green for numbers
+          ],
+          colors: {
+            'editor.background': '#1E1E1E',
+            'editor.foreground': '#D4D4D4',
+            'editorLineNumber.foreground': '#858585',
+            'editorLineNumber.activeForeground': '#C6C6C6',
+          }
+        });
       }
+
+      // Set custom theme
+      monacoInstance.editor.setTheme('dbml-dark');
 
       // Configure editor performance options
       editor.updateOptions({
@@ -1125,7 +1218,7 @@ export const DbmlEditor = React.forwardRef<
           <Editor
             height="100%"
             language="dbml"
-            theme="vs-light"
+            theme="dbml-dark"
             value={editorValue}
             onChange={handleEditorChange}
             onMount={handleEditorDidMount}
@@ -1134,8 +1227,8 @@ export const DbmlEditor = React.forwardRef<
               justifyContent: 'center', 
               alignItems: 'center', 
               height: '100%',
-              background: '#f5f5f5',
-              color: '#666'
+              background: '#1e1e1e',
+              color: '#d4d4d4'
             }}>
               <div>
                 <div>⚡ Loading Editor...</div>

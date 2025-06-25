@@ -1,0 +1,273 @@
+/* DocumentationPage Specific Styles */
+.documentation-page {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+}
+
+/* Header styling */
+.documentation-page .ant-layout-header {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .ant-layout-header .ant-typography {
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Main content typography improvements */
+.documentation-page .ant-typography.ant-typography-h2 {
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  font-family: 'Inter', sans-serif !important;
+  margin-bottom: 32px !important;
+}
+
+.documentation-page .ant-typography.ant-typography-h3 {
+  font-size: 24px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .ant-typography.ant-typography-h4 {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Regular text improvements */
+.documentation-page .ant-typography {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+  color: #374151 !important;
+}
+
+.documentation-page .ant-typography-caption,
+.documentation-page .ant-typography small {
+  font-size: 14px !important;
+}
+
+/* Project info container */
+.documentation-page .project-info-container {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .project-info-container .ant-typography {
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+}
+
+.documentation-page .project-info-container .ant-typography strong {
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+
+/* Sidebar styling */
+.documentation-page .ant-layout-sider,
+.documentation-page .sidebar-content {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .sidebar-content .ant-typography {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.documentation-page .sidebar-content .ant-typography strong {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+/* Small text in sidebar */
+.documentation-page .sidebar-content small,
+.documentation-page .sidebar-content .small-text {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+/* Tables in wiki tab */
+.documentation-page .wiki-container .ant-table {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .wiki-container .ant-table td,
+.documentation-page .wiki-container .ant-table th {
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+/* Cards styling */
+.documentation-page .ant-card {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .ant-card .ant-card-body {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .ant-card .ant-typography {
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Stats cards - larger numbers */
+.documentation-page .stats-card .ant-typography.ant-typography-h2 {
+  font-size: 42px !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+}
+
+.documentation-page .stats-card .stats-label {
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  color: #6b7280 !important;
+}
+
+/* Tabs styling */
+.documentation-page .ant-tabs {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .ant-tabs-tab {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+}
+
+.documentation-page .ant-tabs-content {
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* List items in changelog */
+.documentation-page .changelog-container .ant-list-item {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .changelog-container .version-info {
+  font-size: 16px !important;
+  font-weight: 500 !important;
+}
+
+.documentation-page .changelog-container .version-date {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.documentation-page .changelog-container .version-number {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Buttons */
+.documentation-page .ant-btn {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+}
+
+.documentation-page .ant-btn-sm {
+  font-size: 14px !important;
+}
+
+.documentation-page .ant-btn-lg {
+  font-size: 16px !important;
+}
+
+/* Input fields */
+.documentation-page .ant-input,
+.documentation-page .ant-select,
+.documentation-page .ant-select-selector {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 15px !important;
+}
+
+/* Breadcrumb styling */
+.documentation-page .project-breadcrumb {
+  font-size: 14px !important;
+  font-family: 'Inter', sans-serif !important;
+  margin-bottom: 16px !important;
+}
+
+.documentation-page .project-breadcrumb strong {
+  font-weight: 600 !important;
+}
+
+/* Recent activities section */
+.documentation-page .activities-section h3 {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin-bottom: 16px !important;
+  color: #1f2937 !important;
+}
+
+.documentation-page .activity-item {
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+.documentation-page .activity-item .activity-date {
+  font-size: 14px !important;
+  color: #4285f4 !important;
+  font-weight: 500 !important;
+}
+
+.documentation-page .activity-item .activity-version {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+/* Table structure section */
+.documentation-page .table-structure-section {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.documentation-page .table-structure-section th {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  background-color: #f8fafc !important;
+}
+
+.documentation-page .table-structure-section td {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+/* Responsive font sizes */
+@media (max-width: 768px) {
+  .documentation-page .ant-typography.ant-typography-h2 {
+    font-size: 28px !important;
+  }
+  
+  .documentation-page .ant-typography.ant-typography-h3 {
+    font-size: 22px !important;
+  }
+  
+  .documentation-page .ant-typography.ant-typography-h4 {
+    font-size: 18px !important;
+  }
+  
+  .documentation-page .ant-typography {
+    font-size: 15px !important;
+  }
+  
+  .documentation-page .ant-tabs-tab {
+    font-size: 15px !important;
+  }
+}
+
+/* Enhanced typography for better readability */
+.documentation-page {
+  line-height: 1.6 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Logo in header */
+.documentation-page .header-logo {
+  transition: transform 0.2s ease;
+}
+
+.documentation-page .header-logo:hover {
+  transform: scale(1.05);
+} 

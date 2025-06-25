@@ -1,0 +1,269 @@
+/* Light Theme (Default) */
+:root,
+.light-theme {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --border-color: #e8e8e8;
+  --border-color-secondary: #f0f0f0;
+  --accent-color: #1890ff;
+  --accent-hover: #40a9ff;
+  --success-color: #52c41a;
+  --success-hover: #73d13d;
+  --warning-color: #faad14;
+  --error-color: #ff4d4f;
+  --shadow-light: rgba(0, 0, 0, 0.03);
+  --shadow-medium: rgba(0, 0, 0, 0.1);
+  --sidebar-bg: #fafafa;
+  --header-bg: #ffffff;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --hover-bg: #f6f6f6;
+  --selected-bg: #e6f7ff;
+}
+
+/* Dark Theme */
+.dark-theme {
+  --bg-primary: #1f1f1f;
+  --bg-secondary: #2a2a2a;
+  --bg-tertiary: #3a3a3a;
+  --text-primary: #ffffff;
+  --text-secondary: #d9d9d9;
+  --text-tertiary: #8c8c8c;
+  --border-color: #434343;
+  --border-color-secondary: #5a5a5a;
+  --accent-color: #1890ff;
+  --accent-hover: #40a9ff;
+  --success-color: #52c41a;
+  --success-hover: #73d13d;
+  --warning-color: #faad14;
+  --error-color: #ff4d4f;
+  --shadow-light: rgba(0, 0, 0, 0.2);
+  --shadow-medium: rgba(0, 0, 0, 0.3);
+  --sidebar-bg: #2a2a2a;
+  --header-bg: #1f1f1f;
+  --card-bg: #2a2a2a;
+  --input-bg: #3a3a3a;
+  --hover-bg: #3a3a3a;
+  --selected-bg: #0e3a5b;
+}
+
+/* Global theme styles */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ant Design component overrides for dark theme */
+.dark-theme .ant-layout {
+  background: var(--bg-primary) !important;
+}
+
+.dark-theme .ant-layout-sider {
+  background: var(--sidebar-bg) !important;
+}
+
+.dark-theme .ant-layout-header {
+  background: var(--header-bg) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.dark-theme .ant-layout-content {
+  background: var(--bg-primary) !important;
+}
+
+.dark-theme .ant-card {
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-card-head {
+  background: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-input,
+.dark-theme .ant-input-affix-wrapper {
+  background: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-input::placeholder,
+.dark-theme .ant-input-affix-wrapper input::placeholder {
+  color: var(--text-tertiary) !important;
+}
+
+.dark-theme .ant-select-selector {
+  background: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-select-dropdown {
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-select-item {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-select-item-option-selected {
+  background: var(--selected-bg) !important;
+}
+
+.dark-theme .ant-btn {
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-btn-default {
+  background: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-btn-default:hover {
+  background: var(--hover-bg) !important;
+  border-color: var(--accent-color) !important;
+}
+
+.dark-theme .ant-table {
+  background: var(--card-bg) !important;
+}
+
+.dark-theme .ant-table-thead > tr > th {
+  background: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-table-tbody > tr > td {
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-table-tbody > tr:hover > td {
+  background: var(--hover-bg) !important;
+}
+
+.dark-theme .ant-tabs-nav {
+  background: var(--card-bg) !important;
+}
+
+.dark-theme .ant-tabs-tab {
+  color: var(--text-secondary) !important;
+}
+
+.dark-theme .ant-tabs-tab-active {
+  color: var(--accent-color) !important;
+}
+
+.dark-theme .ant-tabs-content-holder {
+  background: var(--bg-primary) !important;
+}
+
+.dark-theme .ant-modal-content {
+  background: var(--card-bg) !important;
+}
+
+.dark-theme .ant-modal-header {
+  background: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-modal-title {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-dropdown-menu {
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-dropdown-menu-item {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-dropdown-menu-item:hover {
+  background: var(--hover-bg) !important;
+}
+
+.dark-theme .ant-popover-content {
+  background: var(--card-bg) !important;
+}
+
+.dark-theme .ant-popover-inner {
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .ant-tooltip-inner {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .ant-message-notice-content {
+  background: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Monaco Editor dark theme support */
+.dark-theme .monaco-editor {
+  background: var(--bg-secondary) !important;
+}
+
+/* Custom component styles */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-color);
+}
+
+.language-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.language-toggle-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-color);
+}
+
+.settings-popup {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 4px 20px var(--shadow-medium) !important;
+}
+
+.settings-popup .ant-divider {
+  border-color: var(--border-color) !important;
+}
+
+/* Transition animations */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+} 
