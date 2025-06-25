@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_CONFIG } from '../../../config';
+import authService from '../../../services/authService';
 
 export interface PermissionResponse {
   permissionLevel: number;
@@ -15,13 +16,23 @@ export enum PermissionLevel {
 
 export const checkProjectPermission = async (projectId: string): Promise<PermissionResponse> => {
   try {
-    const token = localStorage.getItem('token'); // Lấy token từ localStorage
+    // Check if user is authenticated
+    if (!authService.isAuthenticated()) {
+      console.log('❌ User not authenticated for project permission check');
+      return { permissionLevel: PermissionLevel.DENIED, code: PermissionLevel.DENIED };
+    }
+
+    const authHeader = authService.getAuthorizationHeader();
+    if (!authHeader) {
+      console.log('❌ No authorization header available');
+      return { permissionLevel: PermissionLevel.DENIED, code: PermissionLevel.DENIED };
+    }
 
     const response = await axios.get(
       `${API_CONFIG.BASE_URL}/api/v1/project-access/permission-level/${projectId}`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: authHeader,
           'Content-Type': 'application/json'
         }
       }
