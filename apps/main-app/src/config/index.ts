@@ -21,6 +21,7 @@ const getEnvVar = (name: string): string => {
 export const API_CONFIG = {
   BASE_URL: getEnvVar('VITE_API_DOMAIN'),
   TIMEOUT: 60000, // 60 seconds
+  BASE_URL_FE: getEnvVar('VITE_FRONTEND_URL')
 };
 
 // Log for debugging

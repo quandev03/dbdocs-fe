@@ -123,7 +123,7 @@ export const authService = {
       // Determine redirect URL with proper origin
       // Use API_BASE_URL from environment variable
       console.log(`API_BASE_URL for OAuth: ${API_CONFIG.BASE_URL}`);
-      const redirectUrl = `${API_CONFIG.BASE_URL}${url}`;
+      const redirectUrl = `${API_CONFIG.BASE_URL_FE}${url}`;
       console.log('Opening OAuth popup to:', redirectUrl);
 
       const popup = window.open(
