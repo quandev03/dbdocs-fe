@@ -17,7 +17,7 @@ export const router = createBrowserRouter([
     path: '/login',
     element: (
       <AuthRedirect
-        authenticatedRedirect="/dashboard"
+        authenticatedRedirect="/"
         unauthenticatedRedirect="/login"
         requireAuth={false}
       >
@@ -119,4 +119,4 @@ export const router = createBrowserRouter([
     path: '*',
     element: <NotFound />,
   },
-]); 
+]);
