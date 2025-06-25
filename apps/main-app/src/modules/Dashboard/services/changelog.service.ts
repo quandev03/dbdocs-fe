@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_CONFIG } from '../../../config';
 
 export interface Changelog {
   id: string;
@@ -67,7 +68,7 @@ export const getLatestChangelog = async (projectId: string): Promise<Changelog |
     const token = localStorage.getItem('token');
 
     const response = await axios.get(
-      `${import.meta.env.VITE_API_DOMAIN}/api/v1/changelogs/latest/project/${projectId}`,
+      `${API_CONFIG.BASE_URL}/api/v1/changelogs/latest/project/${projectId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -98,7 +99,7 @@ export const getProjectVersions = async (projectId: string): Promise<VersionInfo
     const token = localStorage.getItem('token');
 
     const response = await axios.get(
-      `${import.meta.env.VITE_API_DOMAIN}/api/v1/versions/project/${projectId}`,
+      `${API_CONFIG.BASE_URL}/api/v1/versions/project/${projectId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -125,7 +126,7 @@ export const getVersionContent = async (projectId: string, versionId: string): P
     const token = localStorage.getItem('token');
 
     const response = await axios.get(
-      `${import.meta.env.VITE_API_DOMAIN}/api/v1/changelogs/project/${projectId}/version/${versionId}`,
+      `${API_CONFIG.BASE_URL}/api/v1/changelogs/project/${projectId}/version/${versionId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

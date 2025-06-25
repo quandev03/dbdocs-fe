@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_CONFIG } from '../../../config';
 
 export interface PermissionResponse {
   permissionLevel: number;
@@ -17,7 +18,7 @@ export const checkProjectPermission = async (projectId: string): Promise<Permiss
     const token = localStorage.getItem('token'); // Lấy token từ localStorage
 
     const response = await axios.get(
-      `${import.meta.env.VITE_API_DOMAIN}/api/v1/project-access/permission-level/${projectId}`,
+      `${API_CONFIG.BASE_URL}/api/v1/project-access/permission-level/${projectId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
