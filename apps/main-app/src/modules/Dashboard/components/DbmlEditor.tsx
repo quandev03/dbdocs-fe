@@ -11,10 +11,12 @@ import {
   BgColorsOutlined
 } from '@ant-design/icons';
 
-// Configure Monaco Editor to use local files
+// Configure Monaco Editor to use CDN (more reliable)
 loader.config({
-  paths: {
-    vs: '/node_modules/monaco-editor/min/vs',
+  'vs/nls': {
+    availableLanguages: {
+      '*': 'en',
+    },
   },
 });
 
@@ -548,33 +550,63 @@ export const DbmlEditor = React.forwardRef<
   };
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
+    console.log('Monaco Editor mounted successfully');
     editorRef.current = editor;
 
-    // Register a custom language
-    monacoInstance.languages.register({ id: 'dbml' });
+    try {
+      // Register a custom language (only if not already registered)
+      const languages = monacoInstance.languages.getLanguages();
+      const dbmlLanguageExists = languages.some(lang => lang.id === 'dbml');
+      
+      if (!dbmlLanguageExists) {
+        monacoInstance.languages.register({ id: 'dbml' });
 
-    // Register a tokens provider for the language
-    monacoInstance.languages.setMonarchTokensProvider('dbml', {
-      tokenizer: {
-        root: [
-          [/Table|Ref|Project|TableGroup|enum/, "keyword"],
-          [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
-          [/varchar|int|timestamp|boolean|text|longtext/, "type"],
-          [/note:|pk|primary key|unique|not null|increment/, "predefined"],
-          [/".*?"/, "string"],
-          [/{|}|[|]|'|"|:|`/, "delimiter.bracket"],
-          [/\/\/.*/, "comment"],
-        ],
-      },
-    });
+        // Register a tokens provider for the language
+        monacoInstance.languages.setMonarchTokensProvider('dbml', {
+          tokenizer: {
+            root: [
+              [/Table|Ref|Project|TableGroup|enum/, "keyword"],
+              [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
+              [/varchar|int|timestamp|boolean|text|longtext/, "type"],
+              [/note:|pk|primary key|unique|not null|increment/, "predefined"],
+              [/".*?"/, "string"],
+              [/{|}|[|]|'|"|:|`/, "delimiter.bracket"],
+              [/\/\/.*/, "comment"],
+            ],
+          },
+        });
+      }
 
-    // Update cursor position
-    editor.onDidChangeCursorPosition(e => {
-      setCursorPosition({
-        line: e.position.lineNumber,
-        column: e.position.column
+      // Configure editor performance options
+      editor.updateOptions({
+        minimap: { enabled: false }, // Disable minimap for better performance
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        wordWrap: 'on',
+        lineNumbers: 'on',
+        renderLineHighlight: 'line',
+        smoothScrolling: true,
+        acceptSuggestionOnEnter: 'on',
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: {
+          other: true,
+          comments: false,
+          strings: false
+        }
       });
-    });
+
+      // Update cursor position
+      editor.onDidChangeCursorPosition(e => {
+        setCursorPosition({
+          line: e.position.lineNumber,
+          column: e.position.column
+        });
+      });
+
+      console.log('Monaco Editor configured successfully');
+    } catch (error) {
+      console.error('Error configuring Monaco Editor:', error);
+    }
   };
 
   // Parse initial value
@@ -1093,14 +1125,38 @@ export const DbmlEditor = React.forwardRef<
           <Editor
             height="100%"
             language="dbml"
-            theme="vs-dark"
+            theme="vs-light"
             value={editorValue}
             onChange={handleEditorChange}
             onMount={handleEditorDidMount}
+            loading={<div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              height: '100%',
+              background: '#f5f5f5',
+              color: '#666'
+            }}>
+              <div>
+                <div>⚡ Loading Editor...</div>
+                <div style={{ fontSize: '12px', marginTop: '4px' }}>Please wait a moment</div>
+              </div>
+            </div>}
             options={{
               readOnly: readOnly,
               wordWrap: 'on',
               minimap: { enabled: false },
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              fontSize: 14,
+              lineHeight: 22,
+              tabSize: 2,
+              insertSpaces: true,
+              renderLineHighlight: 'line',
+              selectOnLineNumbers: true,
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              contextmenu: false // Disable context menu for performance
             }}
           />
           <StatusBar>
