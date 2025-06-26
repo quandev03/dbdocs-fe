@@ -1415,7 +1415,8 @@ const DocumentationPage: React.FC = () => {
           flex: 1,
           border: '1px solid #e8e8e8',
           borderRadius: '4px',
-          height: 'calc(100vh - 150px)',
+          height: 'calc(100vh - 200px)',
+          maxHeight: 'calc(100vh - 200px)',
           overflow: 'hidden',
           position: 'relative'
         }}>
@@ -1425,6 +1426,7 @@ const DocumentationPage: React.FC = () => {
             initialValue={currentDbmlContent}
             projectId={projectId || ''}
             showDiagramOnly={true}
+            height="100%"
           />
         </div>
       </div>
