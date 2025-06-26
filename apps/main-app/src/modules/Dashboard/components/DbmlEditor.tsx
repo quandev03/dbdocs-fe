@@ -64,12 +64,14 @@ interface Relationship {
 const EditorContainer = styled.div`
   height: 100%;
   width: 100%;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
   color: #1e293b;
   border-radius: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 `;
 
 const EditorPane = styled.div`
@@ -148,6 +150,7 @@ const ErrorIndicator = styled.div<{ hasErrors: boolean }>`
 const DiagramPane = styled.div<{ width: string }>`
   width: ${props => props.width};
   height: 100%;
+  max-height: 100vh;
   overflow: hidden;
   background-color: #f8fafc;
   color: #1e293b;
@@ -155,6 +158,7 @@ const DiagramPane = styled.div<{ width: string }>`
   transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   flex: ${props => props.width === '100%' ? 1 : 'none'};
   border-left: 1px solid #e8eef7;
+  box-sizing: border-box;
 `;
 
 const Resizer = styled.div`
@@ -212,20 +216,24 @@ const DiagramContainer = styled.div`
   position: relative;
   width: 100%;
   height: 100%;
+  max-height: 100%;
   overflow: auto;
   background-color: #f8fafc;
+  min-height: 400px;
+  box-sizing: border-box;
 `;
 
 const DiagramCanvas = styled.div<{ scale: number }>`
   position: relative;
-  width: 3000px;
-  height: 3000px;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
   transform-origin: 0 0;
-  transform: scale(${props => props.scale});
   background-color: #f8fafc;
   background-image: 
     radial-gradient(circle, #e2e8f0 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-size: ${props => 20 * props.scale}px ${props => 20 * props.scale}px;
 `;
 
 const TableCard = styled.div<{ x: number; y: number }>`
@@ -355,12 +363,16 @@ const ZoomControls = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 20;
+  z-index: 999999;
   background-color: #ffffff;
   padding: 12px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e8eef7;
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transform: translateZ(0);
 
   .ant-btn {
     width: 40px;
@@ -402,9 +414,13 @@ const MiniMap = styled.div`
   border: 1px solid #e8eef7;
   border-radius: 12px;
   overflow: auto;
-  z-index: 20;
+  z-index: 999999;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   padding: 8px;
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transform: translateZ(0);
 `;
 
 const MiniMapContent = styled.div`
@@ -1287,16 +1303,21 @@ export const DbmlEditor = React.forwardRef<
 
     const tableWidth = 280;
 
-    // Determine table positions
-    const fromTableCenterX = fromTable.x + tableWidth/2;
-    const fromTableCenterY = fromTable.y + headerHeight + (fromTable.fields.length * fieldHeight)/2;
+    // Apply scale to all calculations
+    const scaledTableWidth = tableWidth * scale;
+    const scaledHeaderHeight = headerHeight * scale;
+    const scaledFieldHeight = fieldHeight * scale;
 
-    const toTableCenterX = toTable.x + tableWidth/2;
-    const toTableCenterY = toTable.y + headerHeight + (toTable.fields.length * fieldHeight)/2;
+    // Determine table positions
+    const fromTableCenterX = (fromTable.x * scale) + scaledTableWidth/2;
+    const fromTableCenterY = (fromTable.y * scale) + scaledHeaderHeight + (fromTable.fields.length * scaledFieldHeight)/2;
+
+    const toTableCenterX = (toTable.x * scale) + scaledTableWidth/2;
+    const toTableCenterY = (toTable.y * scale) + scaledHeaderHeight + (toTable.fields.length * scaledFieldHeight)/2;
 
     // Calculate central positions for fields
-    const fromY = fromTable.y + headerHeight + fieldHeight * fromFieldIndex + fieldHeight / 2;
-    const toY = toTable.y + headerHeight + fieldHeight * toFieldIndex + fieldHeight / 2;
+    const fromY = (fromTable.y * scale) + scaledHeaderHeight + scaledFieldHeight * fromFieldIndex + scaledFieldHeight / 2;
+    const toY = (toTable.y * scale) + scaledHeaderHeight + scaledFieldHeight * toFieldIndex + scaledFieldHeight / 2;
 
     // Determine which sides of the tables to connect based on their relative positions
     let fromX, toX;
@@ -1309,23 +1330,23 @@ export const DbmlEditor = React.forwardRef<
       // Tables are more horizontally aligned
       if (fromTableCenterX < toTableCenterX) {
         // FromTable is to the left of ToTable
-        fromX = fromTable.x + tableWidth; // Right side of fromTable
-        toX = toTable.x; // Left side of toTable
+        fromX = (fromTable.x * scale) + scaledTableWidth; // Right side of fromTable
+        toX = (toTable.x * scale); // Left side of toTable
       } else {
         // FromTable is to the right of ToTable
-        fromX = fromTable.x; // Left side of fromTable
-        toX = toTable.x + tableWidth; // Right side of toTable
+        fromX = (fromTable.x * scale); // Left side of fromTable
+        toX = (toTable.x * scale) + scaledTableWidth; // Right side of toTable
       }
     } else {
       // Tables are more vertically aligned
       if (fromTableCenterY < toTableCenterY) {
         // FromTable is above ToTable
-        fromX = fromTable.x + (relationship.from.field === relationship.to.field ? 40 : 80); // Offset from left edge
-        toX = toTable.x + (relationship.from.field === relationship.to.field ? 40 : 120); // Offset from left edge
+        fromX = (fromTable.x * scale) + (relationship.from.field === relationship.to.field ? 40 : 80) * scale; // Offset from left edge
+        toX = (toTable.x * scale) + (relationship.from.field === relationship.to.field ? 40 : 120) * scale; // Offset from left edge
       } else {
         // FromTable is below ToTable
-        fromX = fromTable.x + (relationship.from.field === relationship.to.field ? 120 : 200); // Offset from left edge
-        toX = toTable.x + (relationship.from.field === relationship.to.field ? 200 : 160); // Offset from left edge
+        fromX = (fromTable.x * scale) + (relationship.from.field === relationship.to.field ? 120 : 200) * scale; // Offset from left edge
+        toX = (toTable.x * scale) + (relationship.from.field === relationship.to.field ? 200 : 160) * scale; // Offset from left edge
       }
     }
 
@@ -1564,7 +1585,6 @@ export const DbmlEditor = React.forwardRef<
     setTables(optimizedTables);
   };
 
-  // Debug function to test parsing
   // Handle click on error indicator to navigate to first error
   const handleErrorIndicatorClick = () => {
     if (validationErrors.length > 0 && editorRef.current) {
@@ -1589,52 +1609,6 @@ export const DbmlEditor = React.forwardRef<
           });
         }
       }
-    }
-  };
-
-  const debugParsing = () => {
-    console.log('🐛 Debug - Current state:');
-    console.log('- editorValue:', editorValue.substring(0, 100) + '...');
-    console.log('- tables count:', tables.length);
-    console.log('- relationships count:', relationships.length);
-    
-    if (editorValue) {
-      console.log('🐛 Force parsing DBML...');
-      
-      // Run validation first
-      const validation = validateDbml(editorValue);
-      console.log('🐛 Validation result:', validation);
-      
-      // Update validation markers
-      if (editorRef.current) {
-        const model = editorRef.current.getModel();
-        if (model) {
-          monaco.editor.setModelMarkers(model, 'dbml-validation', validation.markers);
-        }
-      }
-      
-      const parsed = parseDbml(editorValue);
-      
-      // Preserve existing positions where possible
-      const updatedTables = parsed.tables.map(newTable => {
-        const existingTable = tables.find(t => t.name === newTable.name);
-        return existingTable 
-          ? { ...newTable, x: existingTable.x, y: existingTable.y, color: existingTable.color }
-          : newTable;
-      });
-
-      console.log('🐛 Force updating state...');
-      
-      // Force re-render by creating new array and triggering update
-      setTables(prevTables => {
-        console.log('🔄 setTables called - prev:', prevTables.length, 'new:', updatedTables.length);
-        return [...updatedTables];
-      });
-      setRelationships(prevRels => {
-        console.log('🔄 setRelationships called - prev:', prevRels.length, 'new:', parsed.relationships.length);
-        return [...parsed.relationships];
-      });
-      setForceUpdate(prev => prev + 1); // Force component re-render
     }
   };
 
@@ -1824,11 +1798,28 @@ export const DbmlEditor = React.forwardRef<
             </Resizer>
           </>
         )}
-        <DiagramPane width={showDiagramOnly ? '100%' : (isEditorVisible ? `${(1 - paneRatio) * 100}%` : '100%')}>
+        <DiagramPane width={'100%'}>
           <DiagramContainer ref={diagramRef} key={`diagram-${forceUpdate}`}>
             <DiagramCanvas scale={scale} key={`canvas-${forceUpdate}`}>
-              {/* Relationship lines */}
-              <RelationshipLine>
+              <div style={{
+                position: 'relative',
+                width: Math.max(
+                  ...(tables.length > 0 ? [
+                    ...tables.map(t => t.x + 280 + 100),
+                    1000
+                  ] : [1000])
+                ),
+                height: Math.max(
+                  ...(tables.length > 0 ? [
+                    ...tables.map(t => t.y + t.fields.length * 36 + 40 + 100),
+                    800
+                  ] : [800])
+                ),
+                minWidth: '100%',
+                minHeight: '100%'
+              }}>
+                {/* Relationship lines */}
+                <RelationshipLine>
                 {relationships.map((rel, index) => {
                   const coords = getRelationshipCoordinates(rel);
                   if (!coords) return null;
@@ -1862,8 +1853,8 @@ export const DbmlEditor = React.forwardRef<
               {tables.map((table, tableIndex) => (
                 <TableCard
                   key={`${table.name}-${forceUpdate}`}
-                  x={table.x}
-                  y={table.y}
+                  x={table.x * scale}
+                  y={table.y * scale}
                   onMouseDown={(e) => {
                     // Chỉ xử lý kéo thả khi click vào bảng, không phải vào nút menu
                     if (!e.currentTarget.querySelector('.table-menu-trigger')?.contains(e.target as Node)) {
@@ -1917,6 +1908,7 @@ export const DbmlEditor = React.forwardRef<
                   </TableWrapper>
                 </TableCard>
               ))}
+              </div>
             </DiagramCanvas>
           </DiagramContainer>
 
@@ -1958,8 +1950,8 @@ export const DbmlEditor = React.forwardRef<
                   key={`mini-${table.name}-${forceUpdate}`}
                   style={{
                     position: 'absolute',
-                        left: table.x - miniMapProps.offsetX,
-                        top: table.y - miniMapProps.offsetY,
+                        left: (table.x - miniMapProps.offsetX),
+                        top: (table.y - miniMapProps.offsetY),
                     width: 280,
                     height: table.fields.length * 36 + 40,
                         background: table.color || '#4285f4',
@@ -1972,10 +1964,10 @@ export const DbmlEditor = React.forwardRef<
                 />
               ))}
               <ViewportIndicator
-                    x={viewportPos.x - miniMapProps.offsetX}
-                    y={viewportPos.y - miniMapProps.offsetY}
-                    width={diagramRef.current?.clientWidth || 600}
-                    height={diagramRef.current?.clientHeight || 400}
+                    x={(viewportPos.x / scale) - miniMapProps.offsetX}
+                    y={(viewportPos.y / scale) - miniMapProps.offsetY}
+                    width={(diagramRef.current?.clientWidth || 600) / scale}
+                    height={(diagramRef.current?.clientHeight || 400) / scale}
               />
             </MiniMapContent>
           </MiniMap>
@@ -2004,11 +1996,6 @@ export const DbmlEditor = React.forwardRef<
                 icon={<span style={{ fontSize: '12px' }}>🗺️</span>}
               />
             )}
-            <Button 
-              onClick={debugParsing} 
-              title="Debug Parsing"
-              icon={<span style={{ fontSize: '12px' }}>🐛</span>}
-            />
           </ZoomControls>
         </DiagramPane>
       </EditorPane>
