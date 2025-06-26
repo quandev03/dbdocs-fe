@@ -36,6 +36,7 @@ import SettingsPopup from '../../../components/SettingsPopup';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import './EditorPage.css';
+import { API_CONFIG } from './../../../config/index.ts';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -620,7 +621,7 @@ export const DbmlEditorPage: React.FC = () => {
       });
 
       // Set the published URL (assuming the API returns a URL)
-      const publishUrl = response.url || `https://dbdocs.mmoall.com/project/${visibility}/${projectId}/docs`;
+      const publishUrl = response.url || `${API_CONFIG.BASE_URL_FE}/project/${visibility}/${projectId}/docs`;
       setPublishedUrl(publishUrl);
 
       // Refresh versions after publishing

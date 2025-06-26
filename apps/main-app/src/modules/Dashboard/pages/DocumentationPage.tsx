@@ -639,9 +639,9 @@ const DocumentationPage: React.FC = () => {
       const newSchemas = [...prevSchemas];
       const currentExpanded = newSchemas[schemaIndex].tables[tableIndex].isExpanded;
       newSchemas[schemaIndex].tables[tableIndex].isExpanded = !currentExpanded;
-      
+
       console.log(`Toggling table ${tableIndex} in schema ${schemaIndex} from ${currentExpanded} to ${!currentExpanded}`);
-      
+
       return newSchemas;
     });
   };
@@ -687,7 +687,7 @@ const DocumentationPage: React.FC = () => {
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={handleBackToDatabaseView}
-            style={{ 
+            style={{
               marginRight: '12px',
               color: '#1890ff'
             }}
@@ -750,9 +750,9 @@ const DocumentationPage: React.FC = () => {
                 dataIndex: 'name',
                 key: 'name',
                 render: (name: string, record) => (
-                  <div 
-                    style={{ 
-                      display: 'flex', 
+                  <div
+                    style={{
+                      display: 'flex',
                       alignItems: 'center',
                       cursor: 'pointer',
                       color: '#1890ff'
@@ -776,7 +776,7 @@ const DocumentationPage: React.FC = () => {
                 dataIndex: 'note',
                 key: 'note',
                 render: (note: string) => (
-                  <Text style={{ 
+                  <Text style={{
                     color: note ? '#595959' : '#bfbfbf',
                     fontStyle: note ? 'normal' : 'italic'
                   }}>
@@ -829,7 +829,7 @@ const DocumentationPage: React.FC = () => {
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={handleBackToDatabaseView}
-            style={{ 
+            style={{
               marginRight: '12px',
               color: '#1890ff'
             }}
@@ -871,8 +871,8 @@ const DocumentationPage: React.FC = () => {
             <Card style={{ textAlign: 'center', height: '100%' }}>
               <Statistic
                 title="Key Columns"
-                value={selectedTable.columns.filter(col => 
-                  col.name.toLowerCase().includes('id') && 
+                value={selectedTable.columns.filter(col =>
+                  col.name.toLowerCase().includes('id') &&
                   (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id')
                 ).length}
                 prefix={<span style={{ color: '#faad14' }}>🔑</span>}
@@ -883,8 +883,8 @@ const DocumentationPage: React.FC = () => {
             <Card style={{ textAlign: 'center', height: '100%' }}>
               <Statistic
                 title="Regular Fields"
-                value={selectedTable.columns.filter(col => 
-                  !(col.name.toLowerCase().includes('id') && 
+                value={selectedTable.columns.filter(col =>
+                  !(col.name.toLowerCase().includes('id') &&
                     (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id'))
                 ).length}
                 prefix={<span style={{ color: '#52c41a' }}>●</span>}
@@ -919,7 +919,7 @@ const DocumentationPage: React.FC = () => {
                 dataIndex: 'type',
                 key: 'type',
                 render: (type: string) => (
-                  <Text code style={{ 
+                  <Text code style={{
                     backgroundColor: '#f5f5f5',
                     padding: '2px 8px',
                     borderRadius: '4px',
@@ -934,7 +934,7 @@ const DocumentationPage: React.FC = () => {
                 key: 'constraints',
                 render: (_, record) => (
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {record.name.toLowerCase().includes('id') && 
+                    {record.name.toLowerCase().includes('id') &&
                      (record.name.toLowerCase().endsWith('_id') || record.name.toLowerCase() === 'id') && (
                       <Tag color="orange" style={{ margin: 0 }}>
                         KEY
@@ -958,7 +958,7 @@ const DocumentationPage: React.FC = () => {
                 dataIndex: 'note',
                 key: 'note',
                 render: (note: string) => (
-                  <Text style={{ 
+                  <Text style={{
                     color: note ? '#595959' : '#bfbfbf',
                     fontStyle: note ? 'normal' : 'italic'
                   }}>
@@ -1014,8 +1014,8 @@ const DocumentationPage: React.FC = () => {
     if (!project) return <Spin size="large" />;
 
     return (
-      <div 
-        className="project-info-container" 
+      <div
+        className="project-info-container"
         key={language} // Force re-render on language change
         style={{
           backgroundColor: '#fff',
@@ -1318,8 +1318,8 @@ const DocumentationPage: React.FC = () => {
               const latestVersion = versions.length > 0 ? versions[0] : null;
 
               return (
-                <Row key={`table-list-${schema.name}-${tableIndex}`} style={{ 
-                  padding: '16px 0', 
+                <Row key={`table-list-${schema.name}-${tableIndex}`} style={{
+                  padding: '16px 0',
                   borderBottom: '1px solid #f0f0f0',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s ease'
@@ -1627,12 +1627,12 @@ const DocumentationPage: React.FC = () => {
   // Helper function to get column icon based on type
   const getColumnIcon = (columnType: string, columnName: string) => {
     const name = columnName.toLowerCase();
-    
+
     // Primary key detection
     if (name.includes('id') && (name.endsWith('_id') || name === 'id')) {
       return <span style={{ color: '#faad14', fontSize: '10px' }}>🔑</span>;
     }
-    
+
     // Default icon for regular fields - unified design
     return <span style={{ color: '#52c41a', fontSize: '10px' }}>●</span>;
   };
@@ -1658,44 +1658,44 @@ const DocumentationPage: React.FC = () => {
           top: 0,
           zIndex: 10
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            marginBottom: '12px' 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            marginBottom: '12px'
           }}>
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
               size="small"
               onClick={handleBackToDatabaseView}
-              style={{ 
+              style={{
                 marginRight: '8px',
                 color: '#1890ff'
               }}
             />
-            <TableOutlined style={{ 
-              marginRight: '8px', 
+            <TableOutlined style={{
+              marginRight: '8px',
               color: '#1890ff',
-              fontSize: '14px' 
+              fontSize: '14px'
             }} />
-            <Text strong style={{ 
+            <Text strong style={{
               fontSize: '13px',
               color: '#262626'
             }}>
               {t('docs.tableDetail')}
             </Text>
           </div>
-          
+
           {/* Table name and schema */}
           <div style={{ marginBottom: '8px' }}>
-            <Text strong style={{ 
+            <Text strong style={{
               fontSize: '14px',
               color: '#262626',
               display: 'block'
             }}>
               {selectedTable.name}
             </Text>
-            <Text style={{ 
+            <Text style={{
               fontSize: '11px',
               color: '#8c8c8c'
             }}>
@@ -1716,11 +1716,11 @@ const DocumentationPage: React.FC = () => {
               <Text italic>{selectedTable.note}</Text>
             </div>
           )}
-          
+
           {/* Stats */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '12px', 
+          <div style={{
+            display: 'flex',
+            gap: '12px',
             fontSize: '11px',
             color: '#8c8c8c'
           }}>
@@ -1753,13 +1753,13 @@ const DocumentationPage: React.FC = () => {
                 e.currentTarget.style.borderColor = '#f0f0f0';
               }}
             >
-              <div style={{ 
-                display: 'flex', 
+              <div style={{
+                display: 'flex',
                 alignItems: 'center',
                 marginBottom: '4px'
               }}>
                 {getColumnIcon(column.type, column.name)}
-                <Text strong style={{ 
+                <Text strong style={{
                   fontSize: '12px',
                   marginLeft: '8px',
                   color: '#262626',
@@ -1767,8 +1767,8 @@ const DocumentationPage: React.FC = () => {
                 }}>
                   {column.name}
                 </Text>
-                <Text style={{ 
-                  fontSize: '10px', 
+                <Text style={{
+                  fontSize: '10px',
                   color: '#8c8c8c',
                   backgroundColor: '#f5f5f5',
                   padding: '2px 6px',
@@ -1778,9 +1778,9 @@ const DocumentationPage: React.FC = () => {
                   {column.type}
                 </Text>
               </div>
-              
+
               {/* Column constraints/info */}
-              <div style={{ 
+              <div style={{
                 display: 'flex',
                 gap: '4px',
                 flexWrap: 'wrap'
@@ -1797,7 +1797,7 @@ const DocumentationPage: React.FC = () => {
                     KEY
                   </span>
                 )}
-                
+
                 {/* Add more constraint tags as needed */}
                 {column.type.toLowerCase().includes('not null') && (
                   <span style={{
@@ -1850,27 +1850,27 @@ const DocumentationPage: React.FC = () => {
           top: 0,
           zIndex: 10
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            marginBottom: '12px' 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            marginBottom: '12px'
           }}>
-            <ApartmentOutlined style={{ 
-              marginRight: '8px', 
+            <ApartmentOutlined style={{
+              marginRight: '8px',
               color: '#1890ff',
-              fontSize: '14px' 
+              fontSize: '14px'
             }} />
-            <Text strong style={{ 
+            <Text strong style={{
               fontSize: '13px',
               color: '#262626'
             }}>
               {t('docs.databaseSchema')}
             </Text>
           </div>
-          
+
           <Input
             placeholder={t('docs.searchTables')}
-            style={{ 
+            style={{
               marginBottom: '8px',
               borderRadius: '6px',
               fontSize: '12px'
@@ -1880,11 +1880,11 @@ const DocumentationPage: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          
+
           {/* Stats */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '12px', 
+          <div style={{
+            display: 'flex',
+            gap: '12px',
             fontSize: '11px',
             color: '#8c8c8c'
           }}>
@@ -1902,8 +1902,8 @@ const DocumentationPage: React.FC = () => {
         {/* Schema Content */}
         <div style={{ padding: '8px 0' }}>
           {filteredSchemaStructure.length === 0 ? (
-            <div style={{ 
-              padding: '24px 12px', 
+            <div style={{
+              padding: '24px 12px',
               textAlign: 'center',
               color: '#8c8c8c',
               fontSize: '12px'
@@ -1951,21 +1951,21 @@ const DocumentationPage: React.FC = () => {
                   >
                     <CaretDownOutlined />
                   </div>
-                  <div 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
                       flex: 1,
                       cursor: 'pointer'
                     }}
                     onClick={() => handleSchemaSelect(schema.name)}
                   >
-                    <DatabaseOutlined style={{ 
-                      marginRight: '6px', 
+                    <DatabaseOutlined style={{
+                      marginRight: '6px',
                       color: '#1890ff',
-                      fontSize: '12px' 
+                      fontSize: '12px'
                     }} />
-                    <Text strong style={{ 
+                    <Text strong style={{
                       fontSize: '12px',
                       color: '#262626'
                     }}>
@@ -2031,21 +2031,21 @@ const DocumentationPage: React.FC = () => {
                         >
                           <CaretDownOutlined />
                         </div>
-                        <div 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
                             flex: 1,
                             cursor: 'pointer'
                           }}
                           onClick={() => handleTableSelect(table, schema.name)}
                         >
-                          <TableOutlined style={{ 
-                            marginRight: '6px', 
+                          <TableOutlined style={{
+                            marginRight: '6px',
                             color: '#52c41a',
-                            fontSize: '11px' 
+                            fontSize: '11px'
                           }} />
-                          <Text strong style={{ 
+                          <Text strong style={{
                             fontSize: '11px',
                             color: '#262626',
                             flex: 1
@@ -2104,7 +2104,7 @@ const DocumentationPage: React.FC = () => {
                           }}
                         >
                           {getColumnIcon(column.type, column.name)}
-                          <Text style={{ 
+                          <Text style={{
                             fontSize: '11px',
                             marginLeft: '6px',
                             color: '#595959',
@@ -2112,8 +2112,8 @@ const DocumentationPage: React.FC = () => {
                           }}>
                             {column.name}
                           </Text>
-                          <Text style={{ 
-                            fontSize: '10px', 
+                          <Text style={{
+                            fontSize: '10px',
                             color: '#8c8c8c',
                             backgroundColor: '#f5f5f5',
                             padding: '1px 4px',
@@ -2349,7 +2349,7 @@ const DocumentationPage: React.FC = () => {
       const response = await axios.post(
         `${API_CONFIG.BASE_URL}/api/v1/projects/shared/${projectId}`,
         {
-          passwordShare: password
+          passwordShare: password|""
         },
         {
           headers: {
@@ -2467,19 +2467,19 @@ const DocumentationPage: React.FC = () => {
             menu={{
               items: [
                 { key: 'profile', icon: <UserOutlined />, label: t('homepage.profile') },
-                { 
-                  key: 'settings', 
-                  icon: <SettingOutlined />, 
+                {
+                  key: 'settings',
+                  icon: <SettingOutlined />,
                   label: t('homepage.settings'),
                   children: [
-                    { 
-                      key: 'theme', 
+                    {
+                      key: 'theme',
                       icon: theme === 'light' ? <MoonOutlined /> : <SunOutlined />,
                       label: theme === 'light' ? t('homepage.darkMode') : t('homepage.lightMode'),
                       onClick: toggleTheme
                     },
-                    { 
-                      key: 'language', 
+                    {
+                      key: 'language',
                       icon: <GlobalOutlined />,
                       label: language === 'en' ? t('homepage.vietnamese') : t('homepage.english'),
                       onClick: toggleLanguage
