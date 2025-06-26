@@ -412,16 +412,16 @@ const HomePage: React.FC = () => {
       
       <div className={`left-sidebar ${sidebarVisible ? 'visible' : ''}`}>
         <div className="sidebar-section">
-          <div 
+        <div 
             className={`sidebar-menu-item new-project-item ${activeMenuItem === 'new-project' ? 'menu-item-active' : ''}`}
-            onClick={() => {
-              handleMenuItemClick('new-project');
-              handleCreateProject();
-            }}
-          >
-            <div className="sidebar-icon">
-              <PlusOutlined />
-            </div>
+          onClick={() => {
+            handleMenuItemClick('new-project');
+            handleCreateProject();
+          }}
+        >
+          <div className="sidebar-icon">
+            <PlusOutlined />
+          </div>
             <span>{t('homepage.newProject')}</span>
           </div>
         </div>
@@ -430,21 +430,21 @@ const HomePage: React.FC = () => {
         
         <div className="sidebar-section">
           <div className="sidebar-section-title">{t('homepage.projectsSection').toUpperCase()}</div>
-          <div 
+        <div 
             className={`sidebar-menu-item ${activeMenuItem === 'my-projects' ? 'menu-item-active' : ''}`}
-            onClick={() => handleMenuItemClick('my-projects')}
-          >
-            <div className="sidebar-icon">
-              <StarFilled className="star-icon" />
-            </div>
-            <span>{t('homepage.myProjects')}</span>
+          onClick={() => handleMenuItemClick('my-projects')}
+        >
+          <div className="sidebar-icon">
+            <StarFilled className="star-icon" />
           </div>
-          
-          <div 
-            className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
-            onClick={() => handleMenuItemClick('shared')}
-          >
-            <div className="sidebar-icon">
+            <span>{t('homepage.myProjects')}</span>
+        </div>
+        
+        <div 
+          className={`sidebar-menu-item ${activeMenuItem === 'shared' ? 'menu-item-active' : ''}`}
+          onClick={() => handleMenuItemClick('shared')}
+        >
+          <div className="sidebar-icon">
               <StarFilled className="star-icon" />
             </div>
             <span>{t('homepage.sharedWithMe')}</span>
@@ -455,13 +455,13 @@ const HomePage: React.FC = () => {
         
         <div className="sidebar-section">
           <div className="sidebar-section-title">{t('homepage.settingsSection').toUpperCase()}</div>
-          <div 
-            className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
-            onClick={() => handleMenuItemClick('api-tokens')}
-          >
-            <div className="sidebar-icon">
-              <KeyOutlined />
-            </div>
+        <div 
+          className={`sidebar-menu-item ${activeMenuItem === 'api-tokens' ? 'menu-item-active' : ''}`}
+          onClick={() => handleMenuItemClick('api-tokens')}
+        >
+          <div className="sidebar-icon">
+            <KeyOutlined />
+          </div>
             <span>{t('homepage.apiTokens')}</span>
           </div>
         </div>

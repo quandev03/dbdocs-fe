@@ -352,15 +352,15 @@ const CodeComparePage: React.FC = () => {
           }
         } else {
           // Default behavior: Set to the two most recent versions if available
-          if (versionsData.length >= 2) {
-            setSelectedToVersion(versionsData[0].id);
-            setSelectedFromVersion(versionsData[1].id);
+        if (versionsData.length >= 2) {
+          setSelectedToVersion(versionsData[0].id);
+          setSelectedFromVersion(versionsData[1].id);
 
-            setCurrentVersion(versionsData[0]);
-            setPreviousVersion(versionsData[1]);
+          setCurrentVersion(versionsData[0]);
+          setPreviousVersion(versionsData[1]);
 
-            setNewContent(versionsData[0].content || '');
-            setOldContent(versionsData[1].content || '');
+          setNewContent(versionsData[0].content || '');
+          setOldContent(versionsData[1].content || '');
             
             // Calculate detailed changes
             const detailed = analyzeDetailedChanges(versionsData[1].content || '', versionsData[0].content || '');
@@ -368,10 +368,10 @@ const CodeComparePage: React.FC = () => {
             
             // Fetch detailed comparison from API
             await fetchComparisonDetails(projectId!, versionsData[1].codeVersion, versionsData[0].codeVersion);
-          } else if (versionsData.length === 1) {
-            setSelectedToVersion(versionsData[0].id);
-            setCurrentVersion(versionsData[0]);
-            setNewContent(versionsData[0].content || '');
+        } else if (versionsData.length === 1) {
+          setSelectedToVersion(versionsData[0].id);
+          setCurrentVersion(versionsData[0]);
+          setNewContent(versionsData[0].content || '');
           }
         }
       } catch (error) {
@@ -410,7 +410,7 @@ const CodeComparePage: React.FC = () => {
 
         // Fetch detailed comparison from API (only if we have a from version)
         if (fromVersion) {
-          await fetchComparisonDetails(projectId!, fromVersion.codeVersion, toVersion.codeVersion);
+        await fetchComparisonDetails(projectId!, fromVersion.codeVersion, toVersion.codeVersion);
         }
       }
     } catch (error) {
@@ -607,59 +607,59 @@ const CodeComparePage: React.FC = () => {
 
         <div className="version-selector-container">
           <Row gutter={16}>
-            <Col span={12}>
-              <Space direction="vertical" style={{ width: '100%' }}>
+        <Col span={12}>
+          <Space direction="vertical" style={{ width: '100%' }}>
                 <Text className="version-selector-label">From Version (Older):</Text>
-                <Select
+            <Select
                   className="version-selector"
-                  style={{ width: '100%' }}
-                  placeholder="Select from version"
-                  value={selectedFromVersion}
-                  onChange={handleFromVersionChange}
-                  loading={loading}
+              style={{ width: '100%' }}
+              placeholder="Select from version"
+              value={selectedFromVersion}
+              onChange={handleFromVersionChange}
+              loading={loading}
                   allowClear
-                >
+            >
                   <Option value="">No version (compare with empty)</Option>
-                  {versions.map(version => (
-                    <Option key={version.id} value={version.id}>
-                      Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
-                    </Option>
-                  ))}
-                </Select>
-              </Space>
-            </Col>
-            <Col span={12}>
-              <Space direction="vertical" style={{ width: '100%' }}>
+              {versions.map(version => (
+                <Option key={version.id} value={version.id}>
+                  Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
+                </Option>
+              ))}
+            </Select>
+          </Space>
+        </Col>
+        <Col span={12}>
+          <Space direction="vertical" style={{ width: '100%' }}>
                 <Text className="version-selector-label">To Version (Newer):</Text>
-                <Select
+            <Select
                   className="version-selector"
-                  style={{ width: '100%' }}
-                  placeholder="Select to version"
-                  value={selectedToVersion}
-                  onChange={handleToVersionChange}
-                  loading={loading}
-                >
-                  {versions.map(version => (
-                    <Option key={version.id} value={version.id}>
-                      Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
-                    </Option>
-                  ))}
-                </Select>
-              </Space>
-            </Col>
-          </Row>
+              style={{ width: '100%' }}
+              placeholder="Select to version"
+              value={selectedToVersion}
+              onChange={handleToVersionChange}
+              loading={loading}
+            >
+              {versions.map(version => (
+                <Option key={version.id} value={version.id}>
+                  Version {version.codeVersion} - {new Date(version.createdDate).toLocaleDateString()}
+                </Option>
+              ))}
+            </Select>
+          </Space>
+        </Col>
+      </Row>
         </div>
 
-        <Button
-          type="primary"
-          icon={<CodeOutlined />}
+      <Button
+        type="primary"
+        icon={<CodeOutlined />}
           className="action-button"
-          style={{ marginBottom: 24 }}
-          onClick={handleCreateDdlClick}
-          disabled={!selectedFromVersion || !selectedToVersion}
-        >
-          Create DDL Update
-        </Button>
+        style={{ marginBottom: 24 }}
+        onClick={handleCreateDdlClick}
+        disabled={!selectedFromVersion || !selectedToVersion}
+      >
+        Create DDL Update
+      </Button>
 
       {/* DDL Database Selection Modal */}
       <Modal

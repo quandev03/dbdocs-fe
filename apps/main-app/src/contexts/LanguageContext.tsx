@@ -76,6 +76,7 @@ const translations = {
     'homepage.enterProjectDescription': 'Enter project description',
     'homepage.create': 'Create',
     'homepage.createProject': 'Create Project',
+    "homepage.cancel": "Cancel",
     
     // Documentation
     'docs.wiki': 'Wiki',
@@ -230,6 +231,7 @@ const translations = {
     'homepage.enterProjectDescription': 'Nhập mô tả dự án',
     'homepage.create': 'Tạo',
     'homepage.createProject': 'Tạo Dự Án',
+    "homepage.cancel": "Hủy",
     
     // Documentation
     'docs.wiki': 'Wiki',
