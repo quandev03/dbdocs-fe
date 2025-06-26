@@ -48,6 +48,7 @@ interface ProjectData {
   projectCode: string;
   dbmlContent?: string;
   description?: string;
+  visibility?: number;
 }
 
 // Define API response interface
@@ -174,6 +175,7 @@ export const DbmlEditorPage: React.FC = () => {
   const [publishingToDbdocs, setPublishingToDbdocs] = useState<boolean>(false);
   const [publishSuccessModalVisible, setPublishSuccessModalVisible] = useState<boolean>(false);
   const [publishedUrl, setPublishedUrl] = useState<string>('');
+  const [visibility, setVisibility] = useState<number>(1); // 1: Public, 2: Private , 3. Protected password
 
   // Determine if we should show text labels based on screen width
   const showLabels = width > 1100;
@@ -239,6 +241,7 @@ export const DbmlEditorPage: React.FC = () => {
       if (projectData) {
         setProjectName(projectData.projectCode || 'Untitled Project');
         setProjectCode(projectData.projectCode || '');
+        setVisibility(projectData.visibility)
       }
     } catch (error) {
       console.error('Error fetching project data:', error);
@@ -617,7 +620,7 @@ export const DbmlEditorPage: React.FC = () => {
       });
 
       // Set the published URL (assuming the API returns a URL)
-      const publishUrl = response.url || `https://dbdocs.io/docs/${projectId}`;
+      const publishUrl = response.url || `https://dbdocs.mmoall.com/project/${visibility}/${projectId}/docs`;
       setPublishedUrl(publishUrl);
 
       // Refresh versions after publishing
@@ -828,8 +831,8 @@ export const DbmlEditorPage: React.FC = () => {
     <Layout className="dbml-editor-layout">
       <Header className="editor-header">
         <div className="editor-header-left">
-          <SettingsPopup 
-            showExitButton={true} 
+          <SettingsPopup
+            showExitButton={true}
             onExit={() => navigate('/')}
             placement="bottomLeft"
           >
