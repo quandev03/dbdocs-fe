@@ -173,6 +173,7 @@ interface TableColumn {
   name: string;
   type: string;
   note?: string;
+  constraints?: string;
 }
 
 interface TableStructure {
@@ -575,19 +576,78 @@ const DocumentationPage: React.FC = () => {
 
       // Parse columns
       const columns: TableColumn[] = [];
-      const columnRegex = /\s*([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)(?:\s+\[note:\s*'([^']*)')?/g;
+      
+      // Enhanced regex to parse complete field syntax
+      // Matches: field_name type [any brackets content] or field_name type
+      const columnRegex = /\s*([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+(?:\([^)]*\))?)\s*(\[[^\]]*\])?/g;
       let columnMatch;
 
-      // Extract table note if exists
-      const tableNoteRegex = /\[note:\s*'([^']*)'/;
-      const tableNoteMatch = tableContent.match(tableNoteRegex);
-      const tableNote = tableNoteMatch ? tableNoteMatch[1] : '';
+      // Extract table note if exists (not from field lines)
+      const tableLines = tableContent.split('\n');
+      let tableNote = '';
+      for (const line of tableLines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith('[note:') && !trimmedLine.includes(' ')) {
+          const noteMatch = trimmedLine.match(/\[note:\s*["']([^"']*)["']\]/);
+          if (noteMatch) {
+            tableNote = noteMatch[1];
+            break;
+          }
+        }
+      }
 
       while ((columnMatch = columnRegex.exec(tableContent)) !== null) {
+        const fieldName = columnMatch[1];
+        const fieldType = columnMatch[2];
+        const bracketsContent = columnMatch[3] || '';
+
+        // Parse the content inside brackets
+        let note = '';
+        const constraintsList = [];
+
+        if (bracketsContent) {
+          // Remove outer brackets
+          const content = bracketsContent.replace(/^\[|\]$/g, '').trim();
+          
+          // Look for note pattern first
+          const noteMatch = content.match(/note:\s*["']([^"']*)["']/);
+          if (noteMatch) {
+            note = noteMatch[1];
+          }
+
+                  // Remove note part and parse remaining constraints
+        const constraintsOnly = content.replace(/note:\s*["'][^"']*["']/, '').trim();
+        
+        if (constraintsOnly) {
+          // Clean up and split by comma
+          const cleanConstraints = constraintsOnly.replace(/,+$/, '').trim(); // Remove trailing commas
+          const parts = cleanConstraints.split(',').map(part => part.trim()).filter(part => part && part.length > 0);
+          
+          for (const part of parts) {
+            if (part === 'pk' || part === 'primary key') {
+              constraintsList.push('PRIMARY KEY');
+            } else if (part === 'unique') {
+              constraintsList.push('UNIQUE');
+            } else if (part === 'not null') {
+              constraintsList.push('NOT NULL');
+            } else if (part === 'increment' || part === 'auto_increment') {
+              constraintsList.push('AUTO_INCREMENT');
+            } else if (part.startsWith('default:')) {
+              const defaultValue = part.substring(8).trim();
+              constraintsList.push(`DEFAULT ${defaultValue}`);
+            } else if (part && part !== '') {
+              // Other constraints - only add if not empty
+              constraintsList.push(part.toUpperCase());
+            }
+          }
+        }
+        }
+
         columns.push({
-          name: columnMatch[1],
-          type: columnMatch[2],
-          note: columnMatch[3] || ''
+          name: fieldName,
+          type: fieldType,
+          note: note,
+          constraints: constraintsList.length > 0 ? constraintsList.join(', ') : undefined
         });
       }
 
@@ -872,8 +932,7 @@ const DocumentationPage: React.FC = () => {
               <Statistic
                 title="Key Columns"
                 value={selectedTable.columns.filter(col =>
-                  col.name.toLowerCase().includes('id') &&
-                  (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id')
+                  col.constraints && col.constraints.includes('PRIMARY KEY')
                 ).length}
                 prefix={<span style={{ color: '#faad14' }}>🔑</span>}
               />
@@ -884,8 +943,7 @@ const DocumentationPage: React.FC = () => {
               <Statistic
                 title="Regular Fields"
                 value={selectedTable.columns.filter(col =>
-                  !(col.name.toLowerCase().includes('id') &&
-                    (col.name.toLowerCase().endsWith('_id') || col.name.toLowerCase() === 'id'))
+                  !(col.constraints && col.constraints.includes('PRIMARY KEY'))
                 ).length}
                 prefix={<span style={{ color: '#52c41a' }}>●</span>}
               />
@@ -907,9 +965,9 @@ const DocumentationPage: React.FC = () => {
                 title: 'Column Name',
                 dataIndex: 'name',
                 key: 'name',
-                render: (name: string) => (
+                render: (name: string, record: any) => (
                   <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {getColumnIcon('', name)}
+                    {getColumnIcon('', name, record.constraints)}
                     <Text strong style={{ marginLeft: '8px' }}>{name}</Text>
                   </div>
                 )
@@ -933,22 +991,37 @@ const DocumentationPage: React.FC = () => {
                 title: 'Constraints',
                 key: 'constraints',
                 render: (_, record) => (
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {record.name.toLowerCase().includes('id') &&
-                     (record.name.toLowerCase().endsWith('_id') || record.name.toLowerCase() === 'id') && (
-                      <Tag color="orange" style={{ margin: 0 }}>
-                        KEY
-                      </Tag>
-                    )}
-                    {record.type.toLowerCase().includes('not null') && (
-                      <Tag color="green" style={{ margin: 0 }}>
-                        NOT NULL
-                      </Tag>
-                    )}
-                    {record.type.toLowerCase().includes('unique') && (
-                      <Tag color="blue" style={{ margin: 0 }}>
-                        UNIQUE
-                      </Tag>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {record.constraints ? (
+                      record.constraints.split(', ').map((constraint: string, index: number) => {
+                        let color = 'default';
+                        if (constraint === 'PRIMARY KEY') color = 'orange';
+                        else if (constraint === 'UNIQUE') color = 'blue';
+                        else if (constraint === 'NOT NULL') color = 'green';
+                        else if (constraint === 'AUTO_INCREMENT') color = 'purple';
+                        else if (constraint.startsWith('DEFAULT')) color = 'geekblue';
+                        
+                        return (
+                          <Tag key={index} color={color} style={{ margin: '2px 0' }}>
+                            {constraint}
+                          </Tag>
+                        );
+                      })
+                    ) : (
+                      // Fallback: Only show constraints if they are explicitly in the type definition
+                      <>
+                        {record.type.toLowerCase().includes('not null') && (
+                          <Tag color="green" style={{ margin: 0 }}>
+                            NOT NULL
+                          </Tag>
+                        )}
+                        {record.type.toLowerCase().includes('unique') && (
+                          <Tag color="blue" style={{ margin: 0 }}>
+                            UNIQUE
+                          </Tag>
+                        )}
+                        {/* Removed automatic KEY detection to avoid false primary keys */}
+                      </>
                     )}
                   </div>
                 )
@@ -1627,11 +1700,9 @@ const DocumentationPage: React.FC = () => {
   };
 
   // Helper function to get column icon based on type
-  const getColumnIcon = (columnType: string, columnName: string) => {
-    const name = columnName.toLowerCase();
-
-    // Primary key detection
-    if (name.includes('id') && (name.endsWith('_id') || name === 'id')) {
+  const getColumnIcon = (columnType: string, columnName: string, constraints?: string) => {
+    // Check constraints for primary key instead of just field name
+    if (constraints && constraints.includes('PRIMARY KEY')) {
       return <span style={{ color: '#faad14', fontSize: '10px' }}>🔑</span>;
     }
 
@@ -1760,7 +1831,7 @@ const DocumentationPage: React.FC = () => {
                 alignItems: 'center',
                 marginBottom: '4px'
               }}>
-                {getColumnIcon(column.type, column.name)}
+                {getColumnIcon(column.type, column.name, column.constraints)}
                 <Text strong style={{
                   fontSize: '12px',
                   marginLeft: '8px',
@@ -1787,21 +1858,50 @@ const DocumentationPage: React.FC = () => {
                 gap: '4px',
                 flexWrap: 'wrap'
               }}>
-                {column.name.toLowerCase().includes('id') && (
-                  <span style={{
-                    fontSize: '9px',
-                    backgroundColor: '#fff7e6',
-                    color: '#fa8c16',
-                    padding: '1px 4px',
-                    borderRadius: '3px',
-                    border: '1px solid #ffd591'
-                  }}>
-                    KEY
-                  </span>
-                )}
+                {/* Show parsed constraints from DBML */}
+                {column.constraints && column.constraints.split(', ').map((constraint, idx) => {
+                  let backgroundColor = '#f0f0f0';
+                  let color = '#595959';
+                  let borderColor = '#d9d9d9';
+                  
+                  if (constraint === 'PRIMARY KEY') {
+                    backgroundColor = '#fff7e6';
+                    color = '#fa8c16';
+                    borderColor = '#ffd591';
+                  } else if (constraint === 'UNIQUE') {
+                    backgroundColor = '#e6f7ff';
+                    color = '#1890ff';
+                    borderColor = '#91d5ff';
+                  } else if (constraint === 'NOT NULL') {
+                    backgroundColor = '#f6ffed';
+                    color = '#52c41a';
+                    borderColor = '#b7eb8f';
+                  } else if (constraint === 'AUTO_INCREMENT') {
+                    backgroundColor = '#f9f0ff';
+                    color = '#722ed1';
+                    borderColor = '#d3adf7';
+                  } else if (constraint.startsWith('DEFAULT')) {
+                    backgroundColor = '#e6f7ff';
+                    color = '#1890ff';
+                    borderColor = '#91d5ff';
+                  }
+                  
+                  return (
+                    <span key={idx} style={{
+                      fontSize: '9px',
+                      backgroundColor,
+                      color,
+                      padding: '1px 4px',
+                      borderRadius: '3px',
+                      border: `1px solid ${borderColor}`
+                    }}>
+                      {constraint}
+                    </span>
+                  );
+                })}
 
-                {/* Add more constraint tags as needed */}
-                {column.type.toLowerCase().includes('not null') && (
+                {/* Fallback constraints from type */}
+                {!column.constraints && column.type.toLowerCase().includes('not null') && (
                   <span style={{
                     fontSize: '9px',
                     backgroundColor: '#f6ffed',
@@ -1892,11 +1992,11 @@ const DocumentationPage: React.FC = () => {
           }}>
             <span>
               <TableOutlined style={{ marginRight: '4px' }} />
-              {tableStats.tableCount} {t('docs.tables')}
+              {tableStats.tableCount} {t('docs.tablesCount')}
             </span>
             <span>
               <FieldNumberOutlined style={{ marginRight: '4px' }} />
-              {tableStats.fieldCount} {t('docs.fields')}
+              {tableStats.fieldCount} {t('docs.fieldsCount')}
             </span>
           </div>
         </div>
@@ -2105,7 +2205,7 @@ const DocumentationPage: React.FC = () => {
                             }
                           }}
                         >
-                          {getColumnIcon(column.type, column.name)}
+                          {getColumnIcon(column.type, column.name, column.constraints)}
                           <Text style={{
                             fontSize: '11px',
                             marginLeft: '6px',
