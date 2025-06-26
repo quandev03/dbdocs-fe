@@ -36,7 +36,7 @@ import SettingsPopup from '../../../components/SettingsPopup';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import './EditorPage.css';
-import { API_CONFIG } from './../../../config/index.ts';
+import { API_CONFIG } from '../../../config';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -177,6 +177,10 @@ export const DbmlEditorPage: React.FC = () => {
   const [publishSuccessModalVisible, setPublishSuccessModalVisible] = useState<boolean>(false);
   const [publishedUrl, setPublishedUrl] = useState<string>('');
   const [visibility, setVisibility] = useState<number>(1); // 1: Public, 2: Private , 3. Protected password
+  
+  // Validation state
+  const [isDbmlValid, setIsDbmlValid] = useState<boolean>(true);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Determine if we should show text labels based on screen width
   const showLabels = width > 1100;
@@ -242,7 +246,7 @@ export const DbmlEditorPage: React.FC = () => {
       if (projectData) {
         setProjectName(projectData.projectCode || 'Untitled Project');
         setProjectCode(projectData.projectCode || '');
-        setVisibility(projectData.visibility)
+        setVisibility(projectData.visibility || 1)
       }
     } catch (error) {
       console.error('Error fetching project data:', error);
@@ -334,10 +338,19 @@ export const DbmlEditorPage: React.FC = () => {
   // Debounce onChange for better performance
   const handleDbmlChange = useCallback(
     (newCode: string) => {
-      setDbmlCode(newCode);
-      setHasChanges(true);
+    setDbmlCode(newCode);
+    setHasChanges(true);
     },
     [] // No dependencies needed for simple setState
+  );
+
+  // Handle DBML validation changes
+  const handleValidationChange = useCallback(
+    (isValid: boolean, errors: string[]) => {
+      setIsDbmlValid(isValid);
+      setValidationErrors(errors);
+    },
+    []
   );
 
   // Xử lý khi người dùng muốn quay về một changelog
@@ -864,8 +877,9 @@ export const DbmlEditorPage: React.FC = () => {
                 type={hasChanges ? "primary" : "default"}
                 icon={<CloudUploadOutlined />}
                 onClick={handleSave}
-                disabled={!hasChanges || loading}
+                disabled={!hasChanges || loading || !isDbmlValid}
                 className="editor-action-btn"
+                title={!isDbmlValid ? `Cannot save: ${validationErrors.join(', ')}` : undefined}
               >
                 {showLabels && t('editor.saveChanges')}
               </Button>
@@ -928,12 +942,13 @@ export const DbmlEditorPage: React.FC = () => {
               </Button>
             </Tooltip>
 
-            <Tooltip title="Publish to dbdocs.io">
+            <Tooltip title={!isDbmlValid ? `Cannot publish: ${validationErrors.join(', ')}` : "Publish to dbdocs.io"}>
               <Button
                 type="primary"
                 icon={<BookOutlined />}
                 onClick={handlePublishToDbdocs}
                 loading={publishingToDbdocs}
+                disabled={!isDbmlValid}
                 className="editor-action-btn"
                 style={{ backgroundColor: '#1677ff' }}
               >
@@ -999,9 +1014,9 @@ export const DbmlEditorPage: React.FC = () => {
               <DbmlEditor
                 initialValue={dbmlCode || ''}
                 onChange={handleDbmlChange}
+                onValidationChange={handleValidationChange}
                 readOnly={!canEdit}
                 type="dbml"
-                height="100%"
               />
             </div>
           </>

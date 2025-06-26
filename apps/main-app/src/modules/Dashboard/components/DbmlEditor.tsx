@@ -8,7 +8,9 @@ import {
   ZoomOutOutlined,
   FullscreenOutlined,
   MoreOutlined,
-  BgColorsOutlined
+  BgColorsOutlined,
+  CloseOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons';
 
 // Configure Monaco Editor to use CDN (more reliable)
@@ -25,6 +27,7 @@ export interface DbmlEditorProps {
   dbmlContent?: string;
   projectId?: string;
   onChange?: (value: string) => void;
+  onValidationChange?: (isValid: boolean, errors: string[]) => void;
   height?: string;
   readOnly?: boolean;
   type?: string;
@@ -100,9 +103,46 @@ const StatusBar = styled.div`
   padding: 4px 16px;
   font-size: 12px;
   z-index: 20;
-  text-align: right;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-top: 1px solid #374151;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+`;
+
+const StatusBarLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+const StatusBarRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ErrorIndicator = styled.div<{ hasErrors: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: ${props => props.hasErrors ? '#f87171' : '#64748b'};
+  cursor: ${props => props.hasErrors ? 'pointer' : 'default'};
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.hasErrors ? '#374151' : 'transparent'};
+  }
+  
+  .error-icon {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 `;
 
 const DiagramPane = styled.div<{ width: string }>`
@@ -354,22 +394,25 @@ const MiniMap = styled.div`
   position: absolute;
   bottom: 24px;
   left: 24px;
-  width: 220px;
-  height: 160px;
+  max-width: 300px;
+  max-height: 200px;
+  min-width: 180px;
+  min-height: 120px;
   background-color: #ffffff;
   border: 1px solid #e8eef7;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: auto;
   z-index: 20;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 8px;
 `;
 
 const MiniMapContent = styled.div`
   position: relative;
-  width: 100%;
-  height: 100%;
-  transform: scale(0.05);
-  transform-origin: 0 0;
+  width: fit-content;
+  height: fit-content;
+  min-width: 100%;
+  min-height: 100%;
 `;
 
 const ViewportIndicator = styled.div<{x: number, y: number, width: number, height: number}>`
@@ -378,24 +421,100 @@ const ViewportIndicator = styled.div<{x: number, y: number, width: number, heigh
   left: ${props => props.x}px;
   width: ${props => props.width}px;
   height: ${props => props.height}px;
-  border: 2px solid #4285f4;
-  background-color: rgba(66, 133, 244, 0.15);
-  border-radius: 4px;
+  border: 1px solid #4285f4;
+  background-color: rgba(66, 133, 244, 0.1);
+  border-radius: 2px;
+  pointer-events: none;
 `;
 
 // Simple parser to extract table names and fields from DBML
+// Function to validate DBML for duplicate table names
+const validateDbml = (dbmlCode: string) => {
+  const errors: string[] = [];
+  const markers: monaco.editor.IMarkerData[] = [];
+  
+  // Extract all table names with positions
+  const tableNameRegex = /Table\s+([a-zA-Z0-9._"'`]+)\s*\{/g;
+  const tableOccurrences = new Map<string, { name: string; line: number; column: number; match: RegExpExecArray }[]>();
+  let match;
+  
+  // Split code into lines to calculate line numbers
+  const lines = dbmlCode.split('\n');
+  
+  while ((match = tableNameRegex.exec(dbmlCode)) !== null) {
+    const tableName = match[1].replace(/["`']/g, ''); // Remove quotes
+    
+    // Calculate line and column number
+    const beforeMatch = dbmlCode.substring(0, match.index);
+    const lineNumber = beforeMatch.split('\n').length;
+    const lineStart = beforeMatch.lastIndexOf('\n') + 1;
+    const columnNumber = match.index - lineStart + 1;
+    
+    if (!tableOccurrences.has(tableName)) {
+      tableOccurrences.set(tableName, []);
+    }
+    
+    tableOccurrences.get(tableName)!.push({
+      name: tableName,
+      line: lineNumber,
+      column: columnNumber,
+      match
+    });
+  }
+  
+  // Check for duplicates and create markers
+  const duplicateTableNames: string[] = [];
+  
+  for (const [tableName, occurrences] of tableOccurrences) {
+    if (occurrences.length > 1) {
+      duplicateTableNames.push(tableName);
+      errors.push(`Duplicate table name: ${tableName} (found ${occurrences.length} times)`);
+      
+      console.log(`🔍 Found duplicate table "${tableName}" with ${occurrences.length} occurrences:`);
+      
+      // Create error markers for each duplicate occurrence
+      occurrences.forEach((occurrence, index) => {
+        const tableKeyword = occurrence.match[0];
+        const nameStart = tableKeyword.indexOf(occurrence.name);
+        
+        const marker = {
+          startLineNumber: occurrence.line,
+          startColumn: occurrence.column + nameStart,
+          endLineNumber: occurrence.line,
+          endColumn: occurrence.column + nameStart + occurrence.name.length,
+          message: `Duplicate table name "${tableName}" - this is occurrence ${index + 1} of ${occurrences.length}`,
+          severity: monaco.MarkerSeverity.Error,
+        };
+        
+        console.log(`  📍 Marker ${index + 1}:`, marker);
+        markers.push(marker);
+      });
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+    markers,
+    duplicateTableNames
+  };
+};
+
 const parseDbml = (dbmlCode: string) => {
   const tables: TableData[] = [];
   const relationships: Relationship[] = [];
 
-  // Extract tables using regex
-  const tableRegex = /Table\s+([a-zA-Z0-9._]+)(?:\s+as\s+([a-zA-Z0-9_]+))?\s*{([^}]*)}/g;
+  console.log('📝 DBML Code to parse:', dbmlCode.substring(0, 200) + '...');
+
+  // Extract tables using regex - improved to handle more cases
+  const tableRegex = /Table\s+([a-zA-Z0-9._`"]+)(?:\s+as\s+([a-zA-Z0-9_]+))?\s*\{([^}]*)\}/gi;
   let tableMatch;
   let tableIndex = 0;
 
   while ((tableMatch = tableRegex.exec(dbmlCode)) !== null) {
-    const tableName = tableMatch[1];
+    const tableName = tableMatch[1].replace(/[`"]/g, ''); // Remove quotes
     const tableContent = tableMatch[3];
+    console.log(`🔍 Found table: ${tableName}`);
 
     const fields: TableField[] = [];
 
@@ -404,14 +523,16 @@ const parseDbml = (dbmlCode: string) => {
 
     for (const line of fieldLines) {
       // Skip comments and non-field lines
-      if (line.trim().startsWith('//') || line.trim().startsWith('Indexes')) continue;
+      if (line.trim().startsWith('//') || line.trim().startsWith('Indexes') || line.trim() === '') continue;
 
-      const fieldParts = line.trim().split(/\s+/);
-      if (fieldParts.length >= 2) {
-        const fieldName = fieldParts[0];
-        const fieldType = fieldParts[1];
+      // Improved field parsing - handle various formats
+      const fieldMatch = line.trim().match(/^([a-zA-Z0-9_`"]+)\s+([a-zA-Z0-9_()]+)(.*)$/);
+      if (fieldMatch) {
+        const fieldName = fieldMatch[1].replace(/[`"]/g, ''); // Remove quotes
+        const fieldType = fieldMatch[2];
+        const modifiers = fieldMatch[3] || '';
 
-        const isPk = line.includes('[pk') || line.includes('primary key');
+        const isPk = line.includes('[pk') || line.includes('primary key') || modifiers.includes('pk');
 
         // Extract note if available
         let note;
@@ -452,10 +573,11 @@ const parseDbml = (dbmlCode: string) => {
     tables.push({
       name: tableName,
       fields,
-      x: 100 + (tableIndex % 3) * 320,
-      y: 100 + Math.floor(tableIndex / 3) * 250
+      x: 0, // Will be calculated later
+      y: 0  // Will be calculated later
     });
-
+    
+    console.log(`✅ Added table: ${tableName} with ${fields.length} fields`);
     tableIndex++;
   }
 
@@ -483,7 +605,145 @@ const parseDbml = (dbmlCode: string) => {
     });
   }
 
+  // Don't auto-calculate layout here, let the component decide
   return { tables, relationships };
+};
+
+// Function to calculate optimal table layout
+const calculateOptimalLayout = (tables: TableData[], relationships: Relationship[]) => {
+  if (tables.length === 0) return tables;
+
+  const tableWidth = 280;
+  const tableSpacing = 80; // Increased spacing for better readability
+  const minTableHeight = 120;
+  const maxTableHeight = 500; // Allow taller tables
+  const rowSpacing = 80; // Extra spacing between rows
+
+  // Calculate table heights based on field count
+  const tablesWithHeights = tables.map(table => ({
+    ...table,
+    height: Math.min(Math.max(table.fields.length * 36 + 40, minTableHeight), maxTableHeight)
+  }));
+
+  // Group related tables together
+  const tableGroups = groupRelatedTables(tablesWithHeights, relationships);
+  
+  // Calculate viewport dimensions (assume reasonable defaults)
+  const viewportWidth = 1200;
+  const viewportHeight = 800;
+  const startX = 100;
+  const startY = 100;
+
+  let currentX = startX;
+  let currentY = startY;
+  let rowHeight = 0;
+  let groupIndex = 0;
+
+  const positionedTables: TableData[] = [];
+
+  for (const group of tableGroups) {
+    // Calculate total width needed for this group
+    const groupWidth = group.length * tableWidth + (group.length - 1) * tableSpacing;
+    
+    // Check if we need to move to next row
+    if (currentX + groupWidth > viewportWidth - 100 && currentX > startX) {
+      currentX = startX;
+      currentY += rowHeight + rowSpacing;
+      rowHeight = 0;
+    }
+
+    // Position tables in this group
+    let groupX = currentX;
+    const groupY = currentY;
+    
+    for (let i = 0; i < group.length; i++) {
+      const table = group[i];
+      
+      positionedTables.push({
+        ...table,
+        x: groupX,
+        y: groupY
+      });
+      
+      rowHeight = Math.max(rowHeight, table.height);
+      groupX += tableWidth + tableSpacing;
+    }
+    
+    currentX = groupX;
+    groupIndex++;
+  }
+
+  return positionedTables;
+};
+
+// Function to group related tables together
+const groupRelatedTables = (tables: (TableData & { height: number })[], relationships: Relationship[]) => {
+  const groups: (TableData & { height: number })[][] = [];
+  const processedTables = new Set<string>();
+  
+  // Create adjacency map for relationships
+  const adjacencyMap = new Map<string, Set<string>>();
+  
+  tables.forEach(table => {
+    adjacencyMap.set(table.name, new Set());
+  });
+  
+  relationships.forEach(rel => {
+    const fromTable = rel.from.table;
+    const toTable = rel.to.table;
+    
+    if (adjacencyMap.has(fromTable) && adjacencyMap.has(toTable)) {
+      adjacencyMap.get(fromTable)!.add(toTable);
+      adjacencyMap.get(toTable)!.add(fromTable);
+    }
+  });
+  
+  // Group related tables using BFS
+  tables.forEach(table => {
+    if (!processedTables.has(table.name)) {
+      const group: (TableData & { height: number })[] = [];
+      const queue = [table.name];
+      
+      while (queue.length > 0) {
+        const currentTableName = queue.shift()!;
+        
+        if (processedTables.has(currentTableName)) continue;
+        
+        const currentTable = tables.find(t => t.name === currentTableName);
+        if (currentTable) {
+          group.push(currentTable);
+          processedTables.add(currentTableName);
+          
+          // Add related tables to queue (limit group size to avoid huge groups)
+          if (group.length < 4) {
+            const relatedTables = adjacencyMap.get(currentTableName) || new Set();
+            relatedTables.forEach(relatedTableName => {
+              if (!processedTables.has(relatedTableName)) {
+                queue.push(relatedTableName);
+              }
+            });
+          }
+        }
+      }
+      
+      if (group.length > 0) {
+        // Sort group by table size for better visual balance
+        group.sort((a, b) => b.height - a.height);
+        groups.push(group);
+      }
+    }
+  });
+  
+  // Sort groups by total importance (tables with most relationships first)
+  groups.sort((a, b) => {
+    const aConnections = a.reduce((sum, table) => 
+      sum + (adjacencyMap.get(table.name)?.size || 0), 0);
+    const bConnections = b.reduce((sum, table) => 
+      sum + (adjacencyMap.get(table.name)?.size || 0), 0);
+    return bConnections - aConnections;
+  });
+  
+  return groups;
 };
 
 // Thêm các màu có sẵn để người dùng chọn
@@ -523,6 +783,7 @@ export const DbmlEditor = React.forwardRef<
   dbmlContent,
   projectId,
   onChange,
+  onValidationChange,
   height = '90vh',
   readOnly = false,
   type = 'dbml',
@@ -533,6 +794,7 @@ export const DbmlEditor = React.forwardRef<
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [tables, setTables] = useState<TableData[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [scale, setScale] = useState<number>(0.8);
   const [draggedTable, setDraggedTable] = useState<string | null>(null);
   const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -548,6 +810,8 @@ export const DbmlEditor = React.forwardRef<
   const [colorModalVisible, setColorModalVisible] = useState<boolean>(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [isEditorVisible, setIsEditorVisible] = useState<boolean>(!showDiagramOnly);
+  const [miniMapVisible, setMiniMapVisible] = useState<boolean>(true);
+  const [forceUpdate, setForceUpdate] = useState<number>(0);
 
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -566,48 +830,127 @@ export const DbmlEditor = React.forwardRef<
       onChange(code);
     }
 
-    // Parse DBML on change
-    try {
-      const parsed = parseDbml(code);
+    // Validate DBML first
+    const validation = validateDbml(code);
+    setValidationErrors(validation.errors);
+    
+    // Add validation markers to Monaco editor
+    if (editorRef.current) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        console.log('🎯 Setting validation markers:', validation.markers.length, 'markers');
+        monaco.editor.setModelMarkers(model, 'dbml-validation', validation.markers);
+      } else {
+        console.warn('⚠️ Monaco model not available for validation markers');
+      }
+    } else {
+      console.warn('⚠️ Monaco editor not available for validation markers');
+    }
+    
+    // Notify parent component about validation status
+    if (onValidationChange) {
+      onValidationChange(validation.isValid, validation.errors);
+    }
 
-      // Preserve positions of existing tables
+    // Parse DBML on change with better error handling
+    try {
+      console.log('🔄 Parsing DBML code:', code.substring(0, 100) + '...');
+      const parsed = parseDbml(code);
+      console.log('✅ Parsed tables:', parsed.tables.length, 'relationships:', parsed.relationships.length);
+      
+      if (!validation.isValid) {
+        console.warn('⚠️ DBML has validation errors:', validation.errors);
+      }
+
+      if (parsed.tables.length === 0 && code.trim() !== '') {
+        console.warn('⚠️ No tables found in DBML code');
+        // Clear tables if code has content but no tables found
+        setTables([]);
+        setRelationships([]);
+        return;
+      }
+
+      // Force update tables state immediately
+      console.log('🔄 Force updating tables state...');
+      
+      // Preserve positions of existing tables, only recalculate new ones
       const updatedTables = parsed.tables.map(newTable => {
         const existingTable = tables.find(t => t.name === newTable.name);
         if (existingTable) {
           return {
             ...newTable,
             x: existingTable.x,
-            y: existingTable.y
+            y: existingTable.y,
+            color: existingTable.color
           };
         }
-        return newTable;
+        
+        // For new tables, find a good position to avoid overlap
+        let newX = 100;
+        let newY = 100;
+        
+        if (tables.length > 0) {
+          // Find the rightmost table and place new table to the right
+          const rightmostTable = tables.reduce((max, table) => 
+            table.x > max.x ? table : max, tables[0]);
+          newX = rightmostTable.x + 360; // 280 (table width) + 80 (spacing)
+          newY = rightmostTable.y;
+        }
+        
+        return {
+          ...newTable,
+          x: newX,
+          y: newY
+        };
       });
 
-      setTables(updatedTables);
-      setRelationships(parsed.relationships);
+      // Force re-render by creating new array and triggering update
+      setTables(prevTables => {
+        console.log('🔄 setTables called - prev:', prevTables.length, 'new:', updatedTables.length);
+        return [...updatedTables];
+      });
+      setRelationships(prevRels => {
+        console.log('🔄 setRelationships called - prev:', prevRels.length, 'new:', parsed.relationships.length);
+        return [...parsed.relationships];
+      });
+      setForceUpdate(prev => prev + 1); // Force component re-render
+      
+      // Check for new tables
+      const hasNewTables = updatedTables.some(table => 
+        !tables.find(existingTable => existingTable.name === table.name)
+      );
+      
+      // Only auto-layout for completely new projects
+      if (tables.length === 0 && updatedTables.length > 0) {
+        console.log('🎯 Auto-layouting new tables...');
+        setTimeout(() => {
+          const autoLayouted = calculateOptimalLayout(updatedTables, parsed.relationships);
+          setTables([...autoLayouted]);
+        }, 100);
+      }
 
-      // Clear previous markers
+      // Clear previous parsing error markers (keep validation markers)
       if (editorRef.current) {
         const model = editorRef.current.getModel();
         if (model) {
-          monaco.editor.setModelMarkers(model, 'dbml', []);
+          monaco.editor.setModelMarkers(model, 'dbml-parsing', []);
         }
       }
     } catch (error: any) {
-      console.error('Error parsing DBML:', error);
-      // Add error markers to Monaco editor
+      console.error('❌ Error parsing DBML:', error);
+      // Add parsing error markers to Monaco editor
       if (editorRef.current) {
         const model = editorRef.current.getModel();
         if (model) {
           const marker: monaco.editor.IMarkerData = {
-            startLineNumber: 1, // Simple error marking, can be improved
+            startLineNumber: 1,
             startColumn: 1,
             endLineNumber: model.getLineCount(),
             endColumn: model.getLineMaxColumn(model.getLineCount()),
             message: error.message || "Invalid DBML syntax",
             severity: monaco.MarkerSeverity.Error,
           };
-          monaco.editor.setModelMarkers(model, 'dbml', [marker]);
+          monaco.editor.setModelMarkers(model, 'dbml-parsing', [marker]);
         }
       }
     }
@@ -623,12 +966,12 @@ export const DbmlEditor = React.forwardRef<
       const dbmlLanguageExists = languages.some(lang => lang.id === 'dbml');
       
       if (!dbmlLanguageExists) {
-        monacoInstance.languages.register({ id: 'dbml' });
+    monacoInstance.languages.register({ id: 'dbml' });
 
         // Register a tokens provider for the language with custom colors
-        monacoInstance.languages.setMonarchTokensProvider('dbml', {
-          tokenizer: {
-            root: [
+    monacoInstance.languages.setMonarchTokensProvider('dbml', {
+      tokenizer: {
+        root: [
               [/\b(Table|Ref|Project|TableGroup|enum)\b/, "keyword"],
               [/\b(varchar|int|timestamp|boolean|text|longtext|date|json)\b/, "type"],
               [/\b(note|pk|primary key|unique|not null|increment|default|ref)\b/, "predefined"],
@@ -637,7 +980,7 @@ export const DbmlEditor = React.forwardRef<
               [/\{|\}|\[|\]/, "delimiter.bracket"],
               [/[,;:]/, "delimiter"],
               [/\/\/.*$/, "comment"],
-              [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
+          [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
               [/\d+/, "number"],
             ],
           },
@@ -686,15 +1029,26 @@ export const DbmlEditor = React.forwardRef<
           comments: false,
           strings: false
         }
-      });
+    });
 
-      // Update cursor position
-      editor.onDidChangeCursorPosition(e => {
-        setCursorPosition({
-          line: e.position.lineNumber,
-          column: e.position.column
-        });
+    // Update cursor position
+    editor.onDidChangeCursorPosition(e => {
+      setCursorPosition({
+        line: e.position.lineNumber,
+        column: e.position.column
       });
+    });
+
+    // Run initial validation if there's content
+    if (editorValue.trim()) {
+      console.log('🎯 Running initial validation on mount...');
+      const validation = validateDbml(editorValue);
+      const model = editor.getModel();
+      if (model && validation.markers.length > 0) {
+        console.log('🎯 Setting initial validation markers:', validation.markers.length);
+        monacoInstance.editor.setModelMarkers(model, 'dbml-validation', validation.markers);
+      }
+    }
 
       console.log('Monaco Editor configured successfully');
     } catch (error) {
@@ -705,17 +1059,43 @@ export const DbmlEditor = React.forwardRef<
   // Parse initial value
   useEffect(() => {
     const contentToUse = dbmlContent || initialValue;
-    if (contentToUse) {
+    if (contentToUse && contentToUse.trim() !== '') {
       setEditorValue(contentToUse);
       try {
+        console.log('🚀 Initial parsing of DBML...');
         const parsed = parseDbml(contentToUse);
-        setTables(parsed.tables);
-        setRelationships(parsed.relationships);
+        
+        if (parsed.tables.length > 0) {
+          // Auto-layout for initial load
+          const layoutedTables = calculateOptimalLayout(parsed.tables, parsed.relationships);
+          console.log('✅ Initial layout complete, tables:', layoutedTables.length);
+          setTables(layoutedTables);
+          setRelationships(parsed.relationships);
+        }
       } catch (error) {
         console.error('Error parsing initial DBML:', error);
       }
     }
   }, [initialValue, dbmlContent]);
+
+  // Debug tables state changes
+  useEffect(() => {
+    console.log('🔄 Tables state updated:', tables.length, 'tables');
+    tables.forEach(table => {
+      console.log(`  - ${table.name}: (${table.x}, ${table.y}) with ${table.fields.length} fields`);
+    });
+  }, [tables]);
+
+  // Debug force update changes
+  useEffect(() => {
+    console.log('🔄 ForceUpdate changed to:', forceUpdate);
+  }, [forceUpdate]);
+
+  // Debug editor value changes
+  useEffect(() => {
+    console.log('🔄 EditorValue changed:', editorValue.length, 'chars');
+    console.log('  First 100 chars:', editorValue.substring(0, 100));
+  }, [editorValue]);
 
   // Handle table drag start
   const handleTableMouseDown = (e: React.MouseEvent, tableName: string) => {
@@ -1176,6 +1556,123 @@ export const DbmlEditor = React.forwardRef<
     }
   };
 
+  // Function to re-layout all tables optimally
+  const autoLayoutTables = () => {
+    if (tables.length === 0) return;
+    
+    const optimizedTables = calculateOptimalLayout(tables, relationships);
+    setTables(optimizedTables);
+  };
+
+  // Debug function to test parsing
+  // Handle click on error indicator to navigate to first error
+  const handleErrorIndicatorClick = () => {
+    if (validationErrors.length > 0 && editorRef.current) {
+      // Get all error markers
+      const model = editorRef.current.getModel();
+      if (model) {
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri, owner: 'dbml-validation' });
+        if (markers.length > 0) {
+          const firstMarker = markers[0];
+          // Navigate to first error
+          editorRef.current.setPosition({
+            lineNumber: firstMarker.startLineNumber,
+            column: firstMarker.startColumn
+          });
+          // Focus editor and select the error range
+          editorRef.current.focus();
+          editorRef.current.setSelection({
+            startLineNumber: firstMarker.startLineNumber,
+            startColumn: firstMarker.startColumn,
+            endLineNumber: firstMarker.endLineNumber,
+            endColumn: firstMarker.endColumn
+          });
+        }
+      }
+    }
+  };
+
+  const debugParsing = () => {
+    console.log('🐛 Debug - Current state:');
+    console.log('- editorValue:', editorValue.substring(0, 100) + '...');
+    console.log('- tables count:', tables.length);
+    console.log('- relationships count:', relationships.length);
+    
+    if (editorValue) {
+      console.log('🐛 Force parsing DBML...');
+      
+      // Run validation first
+      const validation = validateDbml(editorValue);
+      console.log('🐛 Validation result:', validation);
+      
+      // Update validation markers
+      if (editorRef.current) {
+        const model = editorRef.current.getModel();
+        if (model) {
+          monaco.editor.setModelMarkers(model, 'dbml-validation', validation.markers);
+        }
+      }
+      
+      const parsed = parseDbml(editorValue);
+      
+      // Preserve existing positions where possible
+      const updatedTables = parsed.tables.map(newTable => {
+        const existingTable = tables.find(t => t.name === newTable.name);
+        return existingTable 
+          ? { ...newTable, x: existingTable.x, y: existingTable.y, color: existingTable.color }
+          : newTable;
+      });
+
+      console.log('🐛 Force updating state...');
+      
+      // Force re-render by creating new array and triggering update
+      setTables(prevTables => {
+        console.log('🔄 setTables called - prev:', prevTables.length, 'new:', updatedTables.length);
+        return [...updatedTables];
+      });
+      setRelationships(prevRels => {
+        console.log('🔄 setRelationships called - prev:', prevRels.length, 'new:', parsed.relationships.length);
+        return [...parsed.relationships];
+      });
+      setForceUpdate(prev => prev + 1); // Force component re-render
+    }
+  };
+
+  // Calculate minimap dimensions and scale
+  const calculateMiniMapProps = () => {
+    if (tables.length === 0) {
+      return { scale: 0.1, width: 180, height: 120, offsetX: 0, offsetY: 0 };
+    }
+
+    // Find the bounds of all tables
+    const minX = Math.min(...tables.map(t => t.x));
+    const maxX = Math.max(...tables.map(t => t.x + 280)); // 280 is table width
+    const minY = Math.min(...tables.map(t => t.y));
+    const maxY = Math.max(...tables.map(t => t.y + (t.fields.length * 36 + 40))); // Calculate table height
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    // Calculate scale to fit content in minimap
+    const maxMiniMapWidth = 280;
+    const maxMiniMapHeight = 180;
+    
+    const scaleX = maxMiniMapWidth / contentWidth;
+    const scaleY = maxMiniMapHeight / contentHeight;
+    const scale = Math.min(scaleX, scaleY, 0.15); // Max scale of 0.15
+
+    const miniMapWidth = Math.min(contentWidth * scale + 16, maxMiniMapWidth);
+    const miniMapHeight = Math.min(contentHeight * scale + 16, maxMiniMapHeight);
+
+    return {
+      scale,
+      width: Math.max(miniMapWidth, 180),
+      height: Math.max(miniMapHeight, 120),
+      offsetX: minX,
+      offsetY: minY
+    };
+  };
+
   // Fit diagram to view when tables are loaded
   useEffect(() => {
     if (tables.length > 0) {
@@ -1202,8 +1699,10 @@ export const DbmlEditor = React.forwardRef<
   }));
 
   // Return the JSX element
+  console.log('🔄 DbmlEditor render - tables:', tables.length, 'relationships:', relationships.length);
+  
   return (
-    <EditorContainer style={{ height }}>
+    <EditorContainer style={{ height: height || '100%' }}>
       <EditorPane ref={containerRef}>
         {!showDiagramOnly && (
           <>
@@ -1240,7 +1739,7 @@ export const DbmlEditor = React.forwardRef<
               wordWrap: 'on',
               minimap: { enabled: false },
               automaticLayout: true,
-              scrollBeyondLastLine: false,
+              scrollBeyondLastLine: true,
               fontSize: 14,
               lineHeight: 22,
               tabSize: 2,
@@ -1249,11 +1748,61 @@ export const DbmlEditor = React.forwardRef<
               selectOnLineNumbers: true,
               smoothScrolling: true,
               cursorBlinking: 'smooth',
-              contextmenu: false // Disable context menu for performance
+              contextmenu: false, // Disable context menu for performance
+              scrollbar: {
+                vertical: 'visible',
+                horizontal: 'visible',
+                verticalScrollbarSize: 12,
+                horizontalScrollbarSize: 12
+              }
             }}
           />
           <StatusBar>
-            Ln {cursorPosition.line}, Col {cursorPosition.column}
+            <StatusBarLeft>
+              <Tooltip
+                title={
+                  validationErrors.length > 0 ? (
+                    <div>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#f87171' }}>
+                        Validation Errors ({validationErrors.length}):
+                      </div>
+                      {validationErrors.map((error, index) => (
+                        <div key={index} style={{ fontSize: '11px', marginBottom: '2px' }}>
+                          • {error}
+                        </div>
+                      ))}
+                      <div style={{ fontSize: '10px', marginTop: '4px', color: '#94a3b8' }}>
+                        Click to navigate to first error
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#4ade80' }}>
+                      No validation errors found ✅
+                    </div>
+                  )
+                }
+                placement="top"
+              >
+                <ErrorIndicator 
+                  hasErrors={validationErrors.length > 0}
+                  onClick={validationErrors.length > 0 ? handleErrorIndicatorClick : undefined}
+                >
+                  <span className="error-icon">
+                    {validationErrors.length > 0 ? '❌' : '✅'}
+                  </span>
+                  <span>
+                    {validationErrors.length > 0 
+                      ? `${validationErrors.length} error${validationErrors.length > 1 ? 's' : ''}`
+                      : 'No errors'
+                    }
+                  </span>
+                </ErrorIndicator>
+              </Tooltip>
+            </StatusBarLeft>
+            
+            <StatusBarRight>
+              <span>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>
+            </StatusBarRight>
           </StatusBar>
         </CodeEditorPane>
         <Resizer
@@ -1276,8 +1825,8 @@ export const DbmlEditor = React.forwardRef<
           </>
         )}
         <DiagramPane width={showDiagramOnly ? '100%' : (isEditorVisible ? `${(1 - paneRatio) * 100}%` : '100%')}>
-          <DiagramContainer ref={diagramRef}>
-            <DiagramCanvas scale={scale}>
+          <DiagramContainer ref={diagramRef} key={`diagram-${forceUpdate}`}>
+            <DiagramCanvas scale={scale} key={`canvas-${forceUpdate}`}>
               {/* Relationship lines */}
               <RelationshipLine>
                 {relationships.map((rel, index) => {
@@ -1288,7 +1837,7 @@ export const DbmlEditor = React.forwardRef<
                   const color = getRelationshipColor(rel.type);
 
                   return (
-                    <g key={`rel-${index}`}>
+                    <g key={`rel-${index}-${forceUpdate}`}>
                       <path
                         d={path}
                         stroke={color}
@@ -1312,7 +1861,7 @@ export const DbmlEditor = React.forwardRef<
               {/* Tables */}
               {tables.map((table, tableIndex) => (
                 <TableCard
-                  key={tableIndex}
+                  key={`${table.name}-${forceUpdate}`}
                   x={table.x}
                   y={table.y}
                   onMouseDown={(e) => {
@@ -1372,30 +1921,66 @@ export const DbmlEditor = React.forwardRef<
           </DiagramContainer>
 
           {/* MiniMap */}
-          <MiniMap>
-            <MiniMapContent>
+          {tables.length > 0 && miniMapVisible && (() => {
+            const miniMapProps = calculateMiniMapProps();
+            return (
+              <MiniMap style={{ 
+                width: miniMapProps.width, 
+                height: miniMapProps.height 
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '-8px',
+                  right: '-8px',
+                  zIndex: 21,
+                  background: '#fff',
+                  borderRadius: '50%',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  border: '1px solid #e8eef7'
+                }}
+                onClick={() => setMiniMapVisible(false)}
+                title="Hide MiniMap"
+                >
+                  <CloseOutlined style={{ fontSize: '10px', color: '#64748b' }} />
+                </div>
+                <MiniMapContent style={{
+                  transform: `scale(${miniMapProps.scale})`,
+                  transformOrigin: '0 0'
+                }}>
               {tables.map((table, tableIndex) => (
                 <div
-                  key={`mini-${tableIndex}`}
+                  key={`mini-${table.name}-${forceUpdate}`}
                   style={{
                     position: 'absolute',
-                    left: table.x,
-                    top: table.y,
+                        left: table.x - miniMapProps.offsetX,
+                        top: table.y - miniMapProps.offsetY,
                     width: 280,
                     height: table.fields.length * 36 + 40,
-                    background: table.color || '#1890ff',
-                    border: '1px solid rgba(0,0,0,0.1)'
+                        background: table.color || '#4285f4',
+                        border: '1px solid rgba(0,0,0,0.2)',
+                        borderRadius: '4px',
+                        opacity: 0.8,
+                        transition: 'all 0.2s ease'
                   }}
+                      title={table.name}
                 />
               ))}
               <ViewportIndicator
-                x={viewportPos.x}
-                y={viewportPos.y}
-                width={280}
-                height={tables.length * 36 + 40}
+                    x={viewportPos.x - miniMapProps.offsetX}
+                    y={viewportPos.y - miniMapProps.offsetY}
+                    width={diagramRef.current?.clientWidth || 600}
+                    height={diagramRef.current?.clientHeight || 400}
               />
             </MiniMapContent>
           </MiniMap>
+            );
+          })()}
 
           {/* Zoom controls */}
           <ZoomControls>
@@ -1403,9 +1988,26 @@ export const DbmlEditor = React.forwardRef<
             <Button icon={<ZoomOutOutlined />} onClick={zoomOut} title="Zoom out"/>
             <Button icon={<FullscreenOutlined />} onClick={fitToView} title="Fit to view" />
             <Button
+              onClick={autoLayoutTables}
+              title="Auto Layout Tables"
+              icon={<span style={{ fontSize: '14px' }}>⚡</span>}
+            />
+            <Button
               onClick={toggleLineStyle}
               title="Thay đổi kiểu đường nối"
               icon={<span style={{ fontSize: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{getLineStyleLabel()}</span>}
+            />
+            {!miniMapVisible && tables.length > 0 && (
+              <Button 
+                onClick={() => setMiniMapVisible(true)} 
+                title="Show MiniMap"
+                icon={<span style={{ fontSize: '12px' }}>🗺️</span>}
+              />
+            )}
+            <Button 
+              onClick={debugParsing} 
+              title="Debug Parsing"
+              icon={<span style={{ fontSize: '12px' }}>🐛</span>}
             />
           </ZoomControls>
         </DiagramPane>

@@ -1018,12 +1018,12 @@ const DocumentationPage: React.FC = () => {
         className="project-info-container"
         key={language} // Force re-render on language change
         style={{
-          backgroundColor: '#fff',
-          padding: '24px',
-          borderRadius: '4px',
-          border: '1px solid #e8e8e8',
-          marginBottom: '24px'
-        }}>
+        backgroundColor: '#fff',
+        padding: '24px',
+        borderRadius: '4px',
+        border: '1px solid #e8e8e8',
+        marginBottom: '24px'
+      }}>
         <Title level={2} className="project-title">{project.projectName}</Title>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '24px' }}>
@@ -1849,7 +1849,7 @@ const DocumentationPage: React.FC = () => {
           position: 'sticky',
           top: 0,
           zIndex: 10
-        }}>
+      }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -1915,11 +1915,11 @@ const DocumentationPage: React.FC = () => {
             filteredSchemaStructure.map((schema, schemaIndex) => (
               <div key={`schema-${schemaIndex}`} style={{ marginBottom: '8px' }}>
                 {/* Schema Header */}
-                <div
-                  style={{
+              <div
+                style={{
                     padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
                     backgroundColor: selectedSchemaName === schema.name && !selectedTable ? '#e6f7ff' : '#fff',
                     borderLeft: '3px solid #1890ff',
                     margin: '0 4px',
@@ -1933,17 +1933,17 @@ const DocumentationPage: React.FC = () => {
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = selectedSchemaName === schema.name && !selectedTable ? '#e6f7ff' : '#fff';
                   }}
-                >
+              >
                   <div
-                    style={{
+                  style={{
                       marginRight: '8px',
                       fontSize: '10px',
                       color: '#1890ff',
-                      transform: schema.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                    transform: schema.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                       transition: 'transform 0.2s ease',
                       cursor: 'pointer',
                       display: 'inline-block'
-                    }}
+                  }}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSchemaExpansion(schemaIndex);
@@ -1982,27 +1982,27 @@ const DocumentationPage: React.FC = () => {
                   }}>
                     {schema.tables.length}
                   </span>
-                </div>
+              </div>
 
                                 {/* Tables */}
-                {schema.isExpanded && schema.tables.map((table, tableIndex) => (
+              {schema.isExpanded && schema.tables.map((table, tableIndex) => (
                   <div key={`table-${schemaIndex}-${tableIndex}`} style={{ marginLeft: '8px' }}>
-                    <Tooltip title={table.note || `Table: ${table.name}`} placement="right">
-                      <div
-                        style={{
+                  <Tooltip title={table.note || `Table: ${table.name}`} placement="right">
+                    <div
+                      style={{
                           padding: '6px 12px',
                           paddingLeft: '20px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          backgroundColor: searchTerm && table.name.toLowerCase().includes(searchTerm.toLowerCase())
-                            ? '#e6f7ff'
+                        display: 'flex',
+                        alignItems: 'center',
+                        backgroundColor: searchTerm && table.name.toLowerCase().includes(searchTerm.toLowerCase())
+                          ? '#e6f7ff'
                             : (selectedTable && selectedTable.name === table.name ? '#e6f7ff' : '#fff'),
                           borderLeft: '2px solid #52c41a',
                           margin: '2px 4px 2px 12px',
                           borderRadius: '0 4px 4px 0',
                           transition: 'all 0.2s ease',
                           fontSize: '12px'
-                        }}
+                      }}
                         onMouseEnter={(e) => {
                           if (!searchTerm || !table.name.toLowerCase().includes(searchTerm.toLowerCase())) {
                             e.currentTarget.style.backgroundColor = '#f6f6f6';
@@ -2015,15 +2015,15 @@ const DocumentationPage: React.FC = () => {
                         }}
                       >
                         <div
-                          style={{
-                            marginRight: '6px',
-                            fontSize: '9px',
+                        style={{
+                          marginRight: '6px',
+                          fontSize: '9px',
                             color: '#52c41a',
-                            transform: table.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                          transform: table.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                             transition: 'transform 0.2s ease',
                             cursor: 'pointer',
                             display: 'inline-block'
-                          }}
+                        }}
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleTableExpansion(schemaIndex, tableIndex);
@@ -2062,30 +2062,30 @@ const DocumentationPage: React.FC = () => {
                         }}>
                           {table.columns.length}
                         </span>
-                      </div>
-                    </Tooltip>
+                    </div>
+                  </Tooltip>
 
                     {/* Columns */}
-                    {table.isExpanded && table.columns.map((column, columnIndex) => (
-                      <Tooltip
-                        key={`column-${schemaIndex}-${tableIndex}-${columnIndex}`}
-                        title={
+                  {table.isExpanded && table.columns.map((column, columnIndex) => (
+                    <Tooltip
+                      key={`column-${schemaIndex}-${tableIndex}-${columnIndex}`}
+                      title={
                           <div style={{ fontSize: '11px' }}>
-                            <div><strong>Name:</strong> {column.name}</div>
-                            <div><strong>Type:</strong> {column.type}</div>
-                            {column.note && <div><strong>Note:</strong> {column.note}</div>}
-                          </div>
-                        }
-                        placement="right"
-                      >
-                        <div
-                          style={{
+                          <div><strong>Name:</strong> {column.name}</div>
+                          <div><strong>Type:</strong> {column.type}</div>
+                          {column.note && <div><strong>Note:</strong> {column.note}</div>}
+                        </div>
+                      }
+                      placement="right"
+                    >
+                      <div
+                        style={{
                             padding: '4px 12px',
                             paddingLeft: '32px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            backgroundColor: searchTerm && column.name.toLowerCase().includes(searchTerm.toLowerCase())
-                              ? '#e6f7ff'
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: searchTerm && column.name.toLowerCase().includes(searchTerm.toLowerCase())
+                            ? '#e6f7ff'
                               : 'transparent',
                             margin: '1px 4px 1px 20px',
                             borderRadius: '4px',
@@ -2122,12 +2122,12 @@ const DocumentationPage: React.FC = () => {
                           }}>
                             {column.type}
                           </Text>
-                        </div>
-                      </Tooltip>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                      </div>
+                    </Tooltip>
+                  ))}
+                </div>
+              ))}
+            </div>
             ))
           )}
         </div>
@@ -2347,9 +2347,9 @@ const DocumentationPage: React.FC = () => {
   const handleSharedProjectAccess = async (projectId: string, shareType: number, password: string | null = null) => {
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/api/v1/projects/shared/${projectId}`,
+                  `${API_CONFIG.BASE_URL}/api/v1/projects/shared/${projectId}`,
         {
-          passwordShare: password|""
+            passwordShare: password || ""
         },
         {
           headers: {
@@ -2492,10 +2492,10 @@ const DocumentationPage: React.FC = () => {
             }}
             trigger={['click']}
           >
-            <Avatar
+          <Avatar
               src={creatorInfo?.avatarUrl}
-              style={{ cursor: 'pointer' }}
-            />
+            style={{ cursor: 'pointer' }}
+          />
           </Dropdown>
         </div>
       </Header>

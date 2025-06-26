@@ -98,7 +98,7 @@ const Login: React.FC = () => {
 
             <div className="login-buttons space-y-4">
               {/* Google Login Button */}
-              <Button
+            <Button
                 type="default"
                 size="large"
                 onClick={handleGoogleLogin}
@@ -114,10 +114,10 @@ const Login: React.FC = () => {
                     <span>Log in with Google</span>
                   </div>
                 )}
-              </Button>
+            </Button>
 
               {/* GitHub Login Button */}
-              <Button
+            <Button
                 type="default"
                 size="large"
                 onClick={handleGitHubLogin}
@@ -133,7 +133,7 @@ const Login: React.FC = () => {
                     <span>Log in with GitHub</span>
                   </div>
                 )}
-              </Button>
+            </Button>
             </div>
 
             {/* Divider */}

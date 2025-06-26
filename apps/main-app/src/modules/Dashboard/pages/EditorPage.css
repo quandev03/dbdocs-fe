@@ -109,8 +109,10 @@
 .editor-content {
   height: calc(100vh - 72px);
   padding: 24px 32px;
-  overflow-y: auto;
+  overflow: hidden; /* Let inner components handle scroll */
   background-color: #f5f7fa;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-loading {
@@ -140,12 +142,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   background-color: #ffffff;
-  padding: 16px 24px;
+  padding: 12px 24px;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
   border: 1px solid #e8eef7;
+  flex-shrink: 0; /* Prevent toolbar from shrinking */
 }
 
 .editor-toolbar .ant-typography {
@@ -171,8 +174,24 @@
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
   background-color: #ffffff;
-  height: calc(100% - 88px);
+  flex: 1; /* Take remaining space */
+  min-height: 0; /* Allow flex shrinking */
   border: 1px solid #e8eef7;
+  position: relative;
+}
+
+/* Ensure DbmlEditor takes full height */
+.editor-wrapper > div {
+  height: 100% !important;
+}
+
+/* Ensure Monaco editor has proper scrolling */
+.monaco-editor {
+  border-radius: 0 !important;
+}
+
+.monaco-editor .overflow-guard {
+  border-radius: 0 !important;
 }
 
 .changelog-list {
@@ -283,6 +302,11 @@
   }
 
   .editor-wrapper {
-    height: calc(100% - 72px);
+    flex: 1 !important;
+    min-height: 300px !important;
+  }
+  
+  .editor-wrapper > div {
+    height: 100% !important;
   }
 }
