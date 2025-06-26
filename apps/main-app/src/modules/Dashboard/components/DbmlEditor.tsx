@@ -444,23 +444,19 @@ const ViewportIndicator = styled.div<{x: number, y: number, width: number, heigh
 `;
 
 // Simple parser to extract table names and fields from DBML
-// Function to validate DBML for duplicate table names
+// Enhanced DBML validation function
 const validateDbml = (dbmlCode: string) => {
   const errors: string[] = [];
   const markers: monaco.editor.IMarkerData[] = [];
+  const lines = dbmlCode.split('\n');
   
-  // Extract all table names with positions
+  // 1. Check for duplicate table names
   const tableNameRegex = /Table\s+([a-zA-Z0-9._"'`]+)\s*\{/g;
   const tableOccurrences = new Map<string, { name: string; line: number; column: number; match: RegExpExecArray }[]>();
   let match;
   
-  // Split code into lines to calculate line numbers
-  const lines = dbmlCode.split('\n');
-  
   while ((match = tableNameRegex.exec(dbmlCode)) !== null) {
-    const tableName = match[1].replace(/["`']/g, ''); // Remove quotes
-    
-    // Calculate line and column number
+    const tableName = match[1].replace(/["`']/g, '');
     const beforeMatch = dbmlCode.substring(0, match.index);
     const lineNumber = beforeMatch.split('\n').length;
     const lineStart = beforeMatch.lastIndexOf('\n') + 1;
@@ -478,42 +474,344 @@ const validateDbml = (dbmlCode: string) => {
     });
   }
   
-  // Check for duplicates and create markers
-  const duplicateTableNames: string[] = [];
-  
+  // Check for duplicates
   for (const [tableName, occurrences] of tableOccurrences) {
     if (occurrences.length > 1) {
-      duplicateTableNames.push(tableName);
       errors.push(`Duplicate table name: ${tableName} (found ${occurrences.length} times)`);
       
-      console.log(`🔍 Found duplicate table "${tableName}" with ${occurrences.length} occurrences:`);
-      
-      // Create error markers for each duplicate occurrence
       occurrences.forEach((occurrence, index) => {
         const tableKeyword = occurrence.match[0];
         const nameStart = tableKeyword.indexOf(occurrence.name);
         
-        const marker = {
+        markers.push({
           startLineNumber: occurrence.line,
           startColumn: occurrence.column + nameStart,
           endLineNumber: occurrence.line,
           endColumn: occurrence.column + nameStart + occurrence.name.length,
           message: `Duplicate table name "${tableName}" - this is occurrence ${index + 1} of ${occurrences.length}`,
           severity: monaco.MarkerSeverity.Error,
-        };
-        
-        console.log(`  📍 Marker ${index + 1}:`, marker);
-        markers.push(marker);
+        });
       });
     }
   }
+
+  // 2. Check for unclosed braces
+  let braceDepth = 0;
+  lines.forEach((line, lineIndex) => {
+    const trimmedLine = line.trim();
+    if (trimmedLine.includes('{')) braceDepth++;
+    if (trimmedLine.includes('}')) braceDepth--;
+    
+    if (braceDepth < 0) {
+      errors.push(`Unexpected closing brace at line ${lineIndex + 1}`);
+      markers.push({
+        startLineNumber: lineIndex + 1,
+        startColumn: line.indexOf('}') + 1,
+        endLineNumber: lineIndex + 1,
+        endColumn: line.indexOf('}') + 2,
+        message: 'Unexpected closing brace',
+        severity: monaco.MarkerSeverity.Error,
+      });
+      braceDepth = 0; // Reset to prevent cascade errors
+    }
+  });
+  
+  if (braceDepth > 0) {
+    errors.push('Missing closing brace(s)');
+    markers.push({
+      startLineNumber: lines.length,
+      startColumn: 1,
+      endLineNumber: lines.length,
+      endColumn: lines[lines.length - 1]?.length + 1 || 1,
+      message: `Missing ${braceDepth} closing brace(s)`,
+      severity: monaco.MarkerSeverity.Error,
+    });
+  }
+
+  // 3. Check for invalid field syntax
+  const fieldRegex = /^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z0-9_()]+)(.*)$/;
+  lines.forEach((line, lineIndex) => {
+    const trimmedLine = line.trim();
+    // Skip empty lines, comments, table declarations, and closing braces
+    if (!trimmedLine || trimmedLine.startsWith('//') || 
+        trimmedLine.startsWith('Table') || trimmedLine.startsWith('Ref') ||
+        trimmedLine === '{' || trimmedLine === '}' ||
+        trimmedLine.startsWith('Indexes') || trimmedLine.startsWith('Note')) {
+      return;
+    }
+    
+    // Check if we're inside a table (simple heuristic)
+    const previousLines = lines.slice(0, lineIndex);
+    const hasOpenTable = previousLines.some(prevLine => 
+      prevLine.trim().startsWith('Table') && prevLine.includes('{')
+    );
+    const hasCloseTable = previousLines.reverse().some(prevLine => 
+      prevLine.trim() === '}'
+    );
+    
+    if (hasOpenTable && !hasCloseTable) {
+      // This should be a field definition
+      if (!fieldRegex.test(trimmedLine)) {
+        errors.push(`Invalid field syntax at line ${lineIndex + 1}: ${trimmedLine}`);
+        markers.push({
+          startLineNumber: lineIndex + 1,
+          startColumn: 1,
+          endLineNumber: lineIndex + 1,
+          endColumn: line.length + 1,
+          message: 'Invalid field syntax. Expected: field_name data_type [constraints]',
+          severity: monaco.MarkerSeverity.Error,
+        });
+      }
+    }
+  });
+
+  // 4. Check for invalid reference syntax
+  const refRegex = /Ref:\s*([a-zA-Z0-9._]+)\.([a-zA-Z0-9_]+)\s*([<>-]+)\s*([a-zA-Z0-9._]+)\.([a-zA-Z0-9_]+)/;
+  lines.forEach((line, lineIndex) => {
+    const trimmedLine = line.trim();
+    if (trimmedLine.startsWith('Ref:')) {
+      if (!refRegex.test(trimmedLine)) {
+        errors.push(`Invalid reference syntax at line ${lineIndex + 1}`);
+        markers.push({
+          startLineNumber: lineIndex + 1,
+          startColumn: 1,
+          endLineNumber: lineIndex + 1,
+          endColumn: line.length + 1,
+          message: 'Invalid reference syntax. Expected: Ref: table1.field1 > table2.field2',
+          severity: monaco.MarkerSeverity.Warning,
+        });
+      }
+    }
+  });
+
+  // 5. Check for missing table names
+  const tableDeclarationRegex = /Table\s*\{/;
+  lines.forEach((line, lineIndex) => {
+    if (tableDeclarationRegex.test(line.trim())) {
+      errors.push(`Missing table name at line ${lineIndex + 1}`);
+      markers.push({
+        startLineNumber: lineIndex + 1,
+        startColumn: 1,
+        endLineNumber: lineIndex + 1,
+        endColumn: line.length + 1,
+        message: 'Table declaration missing name. Expected: Table table_name {',
+        severity: monaco.MarkerSeverity.Error,
+      });
+    }
+  });
+
+  // 6. Check for invalid data types (warnings)
+  const validDataTypes = [
+    'varchar', 'char', 'text', 'longtext', 'mediumtext', 'tinytext',
+    'int', 'integer', 'bigint', 'smallint', 'tinyint', 'mediumint',
+    'decimal', 'numeric', 'float', 'double', 'real',
+    'boolean', 'bool', 'bit',
+    'date', 'datetime', 'datetime2', 'timestamp', 'time', 'year',
+    'binary', 'varbinary', 'blob', 'longblob', 'mediumblob', 'tinyblob',
+    'json', 'xml', 'uuid', 'uniqueidentifier', 'money', 'smallmoney'
+  ];
+
+  const dataTypeRegex = /^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z0-9_()]+)/;
+  lines.forEach((line, lineIndex) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('//') || 
+        trimmedLine.startsWith('Table') || trimmedLine.startsWith('Ref') ||
+        trimmedLine === '{' || trimmedLine === '}' ||
+        trimmedLine.startsWith('Indexes') || trimmedLine.startsWith('Note')) {
+      return;
+    }
+
+    const match = dataTypeRegex.exec(trimmedLine);
+    if (match) {
+      const dataType = match[2].replace(/\(.*?\)/, '').toLowerCase(); // Remove parentheses
+      if (!validDataTypes.includes(dataType)) {
+        markers.push({
+          startLineNumber: lineIndex + 1,
+          startColumn: line.indexOf(match[2]) + 1,
+          endLineNumber: lineIndex + 1,
+          endColumn: line.indexOf(match[2]) + match[2].length + 1,
+          message: `Unknown data type '${dataType}'. Did you mean: ${getSuggestedDataType(dataType)}?`,
+          severity: monaco.MarkerSeverity.Warning,
+        });
+      }
+    }
+  });
+
+  // 7. Check for misspelled keywords (warnings)
+  const validKeywords = ['table', 'ref', 'note', 'indexes', 'enum', 'project'];
+  const keywordSuggestions: Record<string, string[]> = {
+    'tabel': ['table'],
+    'tbale': ['table'],
+    'tabl': ['table'],
+    'reff': ['ref'],
+    'reference': ['ref'],
+    'relation': ['ref'],
+    'not': ['note'],
+    'noted': ['note'],
+    'index': ['indexes'],
+    'indx': ['indexes'],
+    'enumm': ['enum'],
+    'proyect': ['project'],
+    'projct': ['project']
+  };
+
+  lines.forEach((line, lineIndex) => {
+    const trimmedLine = line.trim().toLowerCase();
+    const words = trimmedLine.split(/\s+/);
+    
+    words.forEach((word, wordIndex) => {
+      const cleanWord = word.replace(/[^a-zA-Z]/g, '');
+      if (keywordSuggestions[cleanWord]) {
+        const suggestions = keywordSuggestions[cleanWord];
+        const wordStart = line.toLowerCase().indexOf(cleanWord);
+        if (wordStart !== -1) {
+          markers.push({
+            startLineNumber: lineIndex + 1,
+            startColumn: wordStart + 1,
+            endLineNumber: lineIndex + 1,
+            endColumn: wordStart + cleanWord.length + 1,
+            message: `Did you mean '${suggestions[0]}'? Possible spelling error.`,
+            severity: monaco.MarkerSeverity.Warning,
+      });
+    }
+  }
+    });
+  });
+
+  // 8. Check for common constraint spelling errors
+  const constraintSuggestions: Record<string, string> = {
+    'primay': 'primary',
+    'primry': 'primary',
+    'foriegn': 'foreign',
+    'foregn': 'foreign',
+    'uniqe': 'unique',
+    'uinque': 'unique',
+    'nul': 'null',
+    'nott': 'not',
+    'defualt': 'default',
+    'defalt': 'default',
+    'increment': 'increment',
+    'incremnt': 'increment',
+    'auto_incremnt': 'auto_increment',
+    'autoincrement': 'auto_increment'
+  };
+
+  lines.forEach((line, lineIndex) => {
+    Object.keys(constraintSuggestions).forEach(misspelling => {
+      if (line.toLowerCase().includes(misspelling)) {
+        const startIndex = line.toLowerCase().indexOf(misspelling);
+        markers.push({
+          startLineNumber: lineIndex + 1,
+          startColumn: startIndex + 1,
+          endLineNumber: lineIndex + 1,
+          endColumn: startIndex + misspelling.length + 1,
+          message: `Did you mean '${constraintSuggestions[misspelling]}'?`,
+          severity: monaco.MarkerSeverity.Warning,
+        });
+      }
+    });
+  });
+
+  // 9. Check for invalid constraint syntax
+  const constraintRegex = /\[([^\]]+)\]/g;
+  lines.forEach((line, lineIndex) => {
+    let match;
+    while ((match = constraintRegex.exec(line)) !== null) {
+      const constraintContent = match[1].trim();
+      
+      // Valid constraint patterns
+      const validConstraints = [
+        /^pk$/i,
+        /^primary\s+key$/i,
+        /^not\s+null$/i,
+        /^null$/i,
+        /^unique$/i,
+        /^increment$/i,
+        /^auto_increment$/i,
+        /^ref:\s*[<>-]/i,
+        /^default:\s*.+$/i,
+        /^note:\s*.+$/i,
+        /^delete:\s*(cascade|restrict|set null|set default)$/i,
+        /^update:\s*(cascade|restrict|set null|set default)$/i
+      ];
+      
+      const isValidConstraint = validConstraints.some(pattern => pattern.test(constraintContent));
+      
+      if (!isValidConstraint) {
+        // Check for common mistakes
+        let suggestion = '';
+        const lowerContent = constraintContent.toLowerCase();
+        
+        if (lowerContent === 'primary' || lowerContent === 'key') {
+          suggestion = 'Did you mean [pk] or [primary key]?';
+        } else if (lowerContent === 'notnull' || lowerContent === 'not_null') {
+          suggestion = 'Did you mean [not null]?';
+        } else if (lowerContent === 'inc' || lowerContent === 'auto') {
+          suggestion = 'Did you mean [increment] or [auto_increment]?';
+        } else if (lowerContent.startsWith('def:') || lowerContent.startsWith('default ')) {
+          suggestion = 'Use format: [default: value]';
+        } else if (lowerContent.startsWith('note ') || lowerContent.startsWith('notes:')) {
+          suggestion = 'Use format: [note: \'description\']';
+        } else if (lowerContent.includes('reference') || lowerContent.includes('foreign')) {
+          suggestion = 'Use format: [ref: > table.field] or define relationships with Ref:';
+        } else {
+          suggestion = 'Valid constraints: [pk], [not null], [unique], [increment], [default: value], [note: \'text\']';
+        }
+        
+        markers.push({
+          startLineNumber: lineIndex + 1,
+          startColumn: match.index + 1,
+          endLineNumber: lineIndex + 1,
+          endColumn: match.index + match[0].length + 1,
+          message: `Invalid constraint syntax: ${constraintContent}. ${suggestion}`,
+          severity: monaco.MarkerSeverity.Warning,
+        });
+      }
+    }
+  });
   
   return {
     isValid: errors.length === 0,
     errors,
-    markers,
-    duplicateTableNames
+    markers
   };
+};
+
+// Helper function to suggest similar data types
+const getSuggestedDataType = (invalidType: string): string => {
+  const suggestions: Record<string, string> = {
+    'string': 'varchar',
+    'str': 'varchar',
+    'char': 'varchar',
+    'character': 'varchar',
+    'integer': 'int',
+    'number': 'int',
+    'num': 'int',
+    'long': 'bigint',
+    'short': 'smallint',
+    'tiny': 'tinyint',
+    'bool': 'boolean',
+    'bit': 'boolean',
+    'date': 'date',
+    'time': 'datetime',
+    'stamp': 'timestamp'
+  };
+
+  const lowerType = invalidType.toLowerCase();
+  
+  // Exact match
+  if (suggestions[lowerType]) {
+    return suggestions[lowerType];
+  }
+  
+  // Partial match
+  for (const [key, value] of Object.entries(suggestions)) {
+    if (lowerType.includes(key) || key.includes(lowerType)) {
+      return value;
+    }
+  }
+  
+  return 'varchar, int, text, or boolean';
 };
 
 const parseDbml = (dbmlCode: string) => {
@@ -625,15 +923,15 @@ const parseDbml = (dbmlCode: string) => {
   return { tables, relationships };
 };
 
-// Function to calculate optimal table layout
+// Function to calculate optimal table layout with centered distribution
 const calculateOptimalLayout = (tables: TableData[], relationships: Relationship[]) => {
   if (tables.length === 0) return tables;
 
   const tableWidth = 280;
-  const tableSpacing = 80; // Increased spacing for better readability
+  const tableSpacingX = 120; // Reduced spacing for more compact layout
   const minTableHeight = 120;
-  const maxTableHeight = 500; // Allow taller tables
-  const rowSpacing = 80; // Extra spacing between rows
+  const maxTableHeight = 500;
+  const tableSpacingY = 120; // Reduced spacing for more compact layout
 
   // Calculate table heights based on field count
   const tablesWithHeights = tables.map(table => ({
@@ -641,53 +939,59 @@ const calculateOptimalLayout = (tables: TableData[], relationships: Relationship
     height: Math.min(Math.max(table.fields.length * 36 + 40, minTableHeight), maxTableHeight)
   }));
 
-  // Group related tables together
-  const tableGroups = groupRelatedTables(tablesWithHeights, relationships);
+  // Determine optimal grid layout based on number of tables
+  const totalTables = tablesWithHeights.length;
+  let cols: number;
+
+  // Fixed column layout - maximum 4 tables per row
+  if (totalTables <= 1) {
+    cols = 1;
+  } else if (totalTables <= 2) {
+    cols = 2;
+  } else if (totalTables <= 3) {
+    cols = 3;
+  } else {
+    cols = 4; // Always max 4 columns for any number of tables > 3
+  }
   
-  // Calculate viewport dimensions (assume reasonable defaults)
-  const viewportWidth = 1200;
-  const viewportHeight = 800;
-  const startX = 100;
-  const startY = 100;
+  const rows = Math.ceil(totalTables / cols);
 
-  let currentX = startX;
-  let currentY = startY;
-  let rowHeight = 0;
-  let groupIndex = 0;
+  console.log(`🎯 Calculating layout: ${totalTables} tables in ${cols} cols x ${rows} rows`);
 
+  // Calculate total grid dimensions with actual table heights
+  const avgTableHeight = tablesWithHeights.reduce((sum, table) => sum + table.height, 0) / tablesWithHeights.length || minTableHeight;
+  const maxRowHeight = Math.max(avgTableHeight, minTableHeight);
+  
+  const totalGridWidth = cols * tableWidth + (cols - 1) * tableSpacingX;
+  const totalGridHeight = rows * maxRowHeight + (rows - 1) * tableSpacingY;
+
+  // Use reasonable canvas size for better compact layout
+  const canvasWidth = Math.max(1800, totalGridWidth + 400); // More reasonable canvas
+  const canvasHeight = Math.max(1200, totalGridHeight + 400); // More reasonable canvas
+  
+  // Center the grid in the canvas
+  const startX = (canvasWidth - totalGridWidth) / 2;
+  const startY = (canvasHeight - totalGridHeight) / 2;
+
+  console.log(`🎯 Canvas: ${canvasWidth}x${canvasHeight}, Grid: ${totalGridWidth}x${totalGridHeight}, Start: ${startX}, ${startY}`);
+
+  // Always use regular grid layout for better distribution
+  console.log('🎯 Using responsive centered grid layout');
   const positionedTables: TableData[] = [];
 
-  for (const group of tableGroups) {
-    // Calculate total width needed for this group
-    const groupWidth = group.length * tableWidth + (group.length - 1) * tableSpacing;
+  tablesWithHeights.forEach((table, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
     
-    // Check if we need to move to next row
-    if (currentX + groupWidth > viewportWidth - 100 && currentX > startX) {
-      currentX = startX;
-      currentY += rowHeight + rowSpacing;
-      rowHeight = 0;
-    }
-
-    // Position tables in this group
-    let groupX = currentX;
-    const groupY = currentY;
+    const x = startX + col * (tableWidth + tableSpacingX);
+    const y = startY + row * (maxRowHeight + tableSpacingY);
     
-    for (let i = 0; i < group.length; i++) {
-      const table = group[i];
-      
-      positionedTables.push({
-        ...table,
-        x: groupX,
-        y: groupY
-      });
-      
-      rowHeight = Math.max(rowHeight, table.height);
-      groupX += tableWidth + tableSpacing;
-    }
-    
-    currentX = groupX;
-    groupIndex++;
-  }
+    positionedTables.push({
+      ...table,
+      x,
+      y
+    });
+  });
 
   return positionedTables;
 };
@@ -806,12 +1110,18 @@ export const DbmlEditor = React.forwardRef<
   showDiagramOnly = false
 }, ref) => {
   const [editorValue, setEditorValue] = useState<string>(dbmlContent || initialValue);
-  const [paneRatio, setPaneRatio] = useState<number>(0.5); // 50% code, 50% diagram
+  const [paneRatio, setPaneRatio] = useState<number>(showDiagramOnly ? 0 : 0.5); // 50% code, 50% diagram
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [tables, setTables] = useState<TableData[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [scale, setScale] = useState<number>(0.8);
+  
+  // Debug scale changes
+  useEffect(() => {
+    console.log('🔍 Scale changed to:', scale);
+  }, [scale]);
   const [draggedTable, setDraggedTable] = useState<string | null>(null);
   const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [tablePositions, setTablePositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -848,7 +1158,15 @@ export const DbmlEditor = React.forwardRef<
 
     // Validate DBML first
     const validation = validateDbml(code);
-    setValidationErrors(validation.errors);
+    
+    // Separate errors and warnings
+    const errors = validation.errors;
+    const warnings = validation.markers
+      .filter(marker => marker.severity === monaco.MarkerSeverity.Warning)
+      .map(marker => marker.message);
+    
+    setValidationErrors(errors);
+    setValidationWarnings(warnings);
     
     // Add validation markers to Monaco editor
     if (editorRef.current) {
@@ -942,6 +1260,18 @@ export const DbmlEditor = React.forwardRef<
         setTimeout(() => {
           const autoLayouted = calculateOptimalLayout(updatedTables, parsed.relationships);
           setTables([...autoLayouted]);
+          
+          // Set appropriate scale based on diagram size
+          setTimeout(() => {
+            if (updatedTables.length > 50) {
+              setScale(0.5);
+            } else if (updatedTables.length > 20) {
+              setScale(0.7);
+            } else {
+              // Don't auto-fit for medium diagrams either - use fixed scale
+              setScale(0.9);
+            }
+          }, 100);
         }, 100);
       }
 
@@ -989,17 +1319,142 @@ export const DbmlEditor = React.forwardRef<
       tokenizer: {
         root: [
               [/\b(Table|Ref|Project|TableGroup|enum)\b/, "keyword"],
-              [/\b(varchar|int|timestamp|boolean|text|longtext|date|json)\b/, "type"],
-              [/\b(note|pk|primary key|unique|not null|increment|default|ref)\b/, "predefined"],
+              [/\b(varchar|int|timestamp|boolean|text|longtext|date|json|bigint|smallint|tinyint|decimal|float|double|char|nchar|nvarchar|datetime|datetime2|time|binary|varbinary|uniqueidentifier|xml|money|real)\b/, "type"],
+              [/\b(note|pk|primary key|unique|not null|increment|default|ref|auto_increment|primary_key|foreign_key|check|index|indexes)\b/, "predefined"],
               [/'[^']*'/, "string"],
               [/"[^"]*"/, "string"],
+              [/`[^`]*`/, "string"],
               [/\{|\}|\[|\]/, "delimiter.bracket"],
               [/[,;:]/, "delimiter"],
               [/\/\/.*$/, "comment"],
+              [/\/\*[\s\S]*?\*\//, "comment"],
           [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
               [/\d+/, "number"],
             ],
           },
+        });
+
+        // Register completion item provider for DBML
+        monacoInstance.languages.registerCompletionItemProvider('dbml', {
+          provideCompletionItems: (model, position) => {
+            const word = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn
+            };
+            
+            const suggestions: any[] = [
+              // Keywords
+              {
+                label: 'Table',
+                kind: monacoInstance.languages.CompletionItemKind.Keyword,
+                insertText: 'Table ${1:table_name} {\n  ${2:field_name} ${3:data_type}\n}',
+                insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Create a new table with fields',
+                range: range
+              },
+              {
+                label: 'Ref',
+                kind: monacoInstance.languages.CompletionItemKind.Keyword,
+                insertText: 'Ref: ${1:table1}.${2:field1} ${3:>} ${4:table2}.${5:field2}',
+                insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Create a relationship between tables',
+                range: range
+              },
+              // Common data types
+              {
+                label: 'varchar',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'varchar(${1:255})',
+                insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Variable character string',
+                range: range
+              },
+              {
+                label: 'int',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'int',
+                documentation: 'Integer number',
+                range: range
+              },
+              {
+                label: 'bigint',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'bigint',
+                documentation: 'Big integer number',
+                range: range
+              },
+              {
+                label: 'text',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'text',
+                documentation: 'Large text field',
+                range: range
+              },
+              {
+                label: 'boolean',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'boolean',
+                documentation: 'True/false value',
+                range: range
+              },
+              {
+                label: 'timestamp',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'timestamp',
+                documentation: 'Date and time',
+                range: range
+              },
+              {
+                label: 'datetime',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'datetime',
+                documentation: 'Date and time',
+                range: range
+              },
+              {
+                label: 'json',
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                insertText: 'json',
+                documentation: 'JSON data type',
+                range: range
+              },
+              // Field constraints
+              {
+                label: 'pk',
+                kind: monacoInstance.languages.CompletionItemKind.Property,
+                insertText: '[pk]',
+                documentation: 'Primary key constraint',
+                range: range
+              },
+              {
+                label: 'not null',
+                kind: monacoInstance.languages.CompletionItemKind.Property,
+                insertText: '[not null]',
+                documentation: 'Not null constraint',
+                range: range
+              },
+              {
+                label: 'unique',
+                kind: monacoInstance.languages.CompletionItemKind.Property,
+                insertText: '[unique]',
+                documentation: 'Unique constraint',
+                range: range
+              },
+              {
+                label: 'default',
+                kind: monacoInstance.languages.CompletionItemKind.Property,
+                insertText: '[default: ${1:value}]',
+                insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Default value',
+                range: range
+              }
+            ];
+            
+            return { suggestions };
+          }
         });
 
         // Define custom theme for DBML with dark colors matching the image
@@ -1029,6 +1484,141 @@ export const DbmlEditor = React.forwardRef<
       // Set custom theme
       monacoInstance.editor.setTheme('dbml-dark');
 
+      // Add CSS to fix search box icons
+      const style = document.createElement('style');
+      style.textContent = `
+        /* Import VS Code codicon font */
+        @font-face {
+          font-family: 'codicon';
+          src: url('https://microsoft.github.io/monaco-editor/assets/fonts/codicon/codicon.ttf') format('truetype');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        /* Fix Monaco Editor search box icons */
+        .monaco-editor .find-widget .codicon {
+          font-family: 'codicon' !important;
+          font-size: 16px !important;
+          line-height: 22px !important;
+          display: inline-block !important;
+          text-decoration: none !important;
+          text-rendering: auto !important;
+          text-align: center !important;
+          -webkit-font-smoothing: antialiased !important;
+          -moz-osx-font-smoothing: grayscale !important;
+          user-select: none !important;
+          -webkit-user-select: none !important;
+          -ms-user-select: none !important;
+        }
+
+        /* Specific icon mappings matching VS Code */
+        .monaco-editor .find-widget .codicon-arrow-up::before {
+          content: '\\eb09' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-arrow-down::before {
+          content: '\\eb0a' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-close::before {
+          content: '\\eb46' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-replace::before {
+          content: '\\eb3d' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-replace-all::before {
+          content: '\\eb3c' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-selection::before {
+          content: '\\eb85' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-case-sensitive::before {
+          content: '\\eb4f' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-whole-word::before {
+          content: '\\eb86' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-regex::before {
+          content: '\\eb38' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-preserve-case::before {
+          content: '\\eb8a' !important;
+        }
+
+        .monaco-editor .find-widget .codicon-chevron-down::before {
+          content: '\\eb4e' !important;
+        }
+
+        /* Style toggle buttons to match VS Code */
+        .monaco-editor .find-widget .toggle {
+          background-color: transparent !important;
+          border: 1px solid transparent !important;
+          color: #cccccc !important;
+          border-radius: 3px !important;
+        }
+
+        .monaco-editor .find-widget .toggle.checked {
+          background-color: rgba(14, 99, 156, 0.8) !important;
+          border-color: rgba(14, 99, 156, 0.8) !important;
+        }
+
+        .monaco-editor .find-widget .button {
+          background-color: transparent !important;
+          border: none !important;
+          color: #cccccc !important;
+          cursor: pointer !important;
+          padding: 2px 4px !important;
+          border-radius: 3px !important;
+        }
+
+        .monaco-editor .find-widget .button:hover:not(.disabled) {
+          background-color: rgba(90, 93, 94, 0.31) !important;
+        }
+
+        .monaco-editor .find-widget .button.disabled {
+          opacity: 0.4 !important;
+          cursor: default !important;
+        }
+
+        /* Improve search box appearance */
+        .monaco-editor .find-widget {
+          background-color: #252526 !important;
+          border: 1px solid #3c3c3c !important;
+          border-radius: 3px !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .monaco-editor .find-widget .monaco-inputbox {
+          background-color: #3c3c3c !important;
+          border: 1px solid #464647 !important;
+          border-radius: 2px !important;
+        }
+
+        .monaco-editor .find-widget .monaco-inputbox input {
+          background-color: transparent !important;
+          color: #cccccc !important;
+        }
+
+        /* Match count styling */
+        .monaco-editor .find-widget .matchesCount {
+          color: #858585 !important;
+          margin: 0 5px !important;
+        }
+
+        /* Replace input styling */
+        .monaco-editor .find-widget .replace-part .monaco-inputbox {
+          margin-left: 17px !important;
+        }
+      `;
+      document.head.appendChild(style);
+
       // Configure editor performance options
       editor.updateOptions({
         minimap: { enabled: false }, // Disable minimap for better performance
@@ -1044,6 +1634,11 @@ export const DbmlEditor = React.forwardRef<
           other: true,
           comments: false,
           strings: false
+        },
+        find: {
+          addExtraSpaceOnTop: false,
+          autoFindInSelection: 'never',
+          seedSearchStringFromSelection: 'always'
         }
     });
 
@@ -1059,6 +1654,16 @@ export const DbmlEditor = React.forwardRef<
     if (editorValue.trim()) {
       console.log('🎯 Running initial validation on mount...');
       const validation = validateDbml(editorValue);
+      
+      // Separate errors and warnings for initial validation
+      const errors = validation.errors;
+      const warnings = validation.markers
+        .filter(marker => marker.severity === monacoInstance.MarkerSeverity.Warning)
+        .map(marker => marker.message);
+      
+      setValidationErrors(errors);
+      setValidationWarnings(warnings);
+      
       const model = editor.getModel();
       if (model && validation.markers.length > 0) {
         console.log('🎯 Setting initial validation markers:', validation.markers.length);
@@ -1072,10 +1677,12 @@ export const DbmlEditor = React.forwardRef<
     }
   };
 
-  // Parse initial value
+  // Parse initial value - only run once on mount, don't reset scale on content changes
+  const [hasInitialized, setHasInitialized] = useState(false);
+  
   useEffect(() => {
     const contentToUse = dbmlContent || initialValue;
-    if (contentToUse && contentToUse.trim() !== '') {
+    if (contentToUse && contentToUse.trim() !== '' && !hasInitialized) {
       setEditorValue(contentToUse);
       try {
         console.log('🚀 Initial parsing of DBML...');
@@ -1087,12 +1694,27 @@ export const DbmlEditor = React.forwardRef<
           console.log('✅ Initial layout complete, tables:', layoutedTables.length);
           setTables(layoutedTables);
           setRelationships(parsed.relationships);
+          
+          // Set appropriate scale for initial load - ONLY ONCE
+          setTimeout(() => {
+            if (layoutedTables.length > 50) {
+              setScale(0.5);
+            } else if (layoutedTables.length > 20) {
+              setScale(0.7);
+            } else {
+              // Use fixed scale for initial load to prevent auto-shrinking
+              setScale(0.9);
+            }
+          }, 200);
+          
+          // Mark as initialized to prevent re-running
+          setHasInitialized(true);
         }
       } catch (error) {
         console.error('Error parsing initial DBML:', error);
       }
     }
-  }, [initialValue, dbmlContent]);
+  }, [initialValue, dbmlContent, hasInitialized]);
 
   // Debug tables state changes
   useEffect(() => {
@@ -1112,6 +1734,29 @@ export const DbmlEditor = React.forwardRef<
     console.log('🔄 EditorValue changed:', editorValue.length, 'chars');
     console.log('  First 100 chars:', editorValue.substring(0, 100));
   }, [editorValue]);
+
+  // Sync states when showDiagramOnly changes
+  useEffect(() => {
+    setIsEditorVisible(!showDiagramOnly);
+    setPaneRatio(showDiagramOnly ? 0 : 0.5);
+  }, [showDiagramOnly]);
+
+  // Update diagram when pane ratio changes - but don't trigger on tables.length to prevent loops
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+      
+      // Also refresh editor layout
+      if (editorRef.current) {
+        editorRef.current.layout();
+      }
+
+      // Don't auto-fit on pane ratio changes to preserve user's zoom level
+      // Let user control the zoom manually
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [paneRatio, isEditorVisible, showDiagramOnly]); // Removed tables.length dependency
 
   // Handle table drag start
   const handleTableMouseDown = (e: React.MouseEvent, tableName: string) => {
@@ -1172,7 +1817,7 @@ export const DbmlEditor = React.forwardRef<
     };
   }, [draggedTable, handleMouseMove, handleMouseUp]);
 
-  // Update viewport position for minimap
+  // Update viewport position for minimap and handle resize
   useEffect(() => {
     const updateViewport = () => {
       if (diagramRef.current) {
@@ -1187,17 +1832,25 @@ export const DbmlEditor = React.forwardRef<
       }
     };
 
+    const handleResize = () => {
+      updateViewport();
+      // Force update diagram layout after window resize
+      setTimeout(() => {
+        setForceUpdate(prev => prev + 1);
+      }, 100);
+    };
+
     const diagram = diagramRef.current;
     if (diagram) {
       diagram.addEventListener('scroll', updateViewport);
-      window.addEventListener('resize', updateViewport);
+      window.addEventListener('resize', handleResize);
       updateViewport();
     }
 
     return () => {
       if (diagram) {
         diagram.removeEventListener('scroll', updateViewport);
-        window.removeEventListener('resize', updateViewport);
+        window.removeEventListener('resize', handleResize);
       }
     };
   }, [scale]);
@@ -1217,9 +1870,15 @@ export const DbmlEditor = React.forwardRef<
     setScale(1.0);
   };
 
-  // Fit diagram to view
+  // Fit diagram to view with conservative scale limits
   const fitToView = () => {
-    if (!diagramRef.current) return;
+    console.log('🎯 fitToView() called - using conservative scaling');
+    
+    if (!diagramRef.current || tables.length === 0) {
+      console.log('🎯 No diagram ref or tables, setting scale to 1.0');
+      setScale(1.0);
+      return;
+    }
 
     // Find diagram bounds
     let minX = Infinity;
@@ -1227,23 +1886,20 @@ export const DbmlEditor = React.forwardRef<
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    if (tables.length === 0) {
-      setScale(1.0);
-      return;
-    }
-
     tables.forEach(table => {
+      const tableHeight = table.fields.length * 36 + 40; // header + fields
       minX = Math.min(minX, table.x);
       minY = Math.min(minY, table.y);
       maxX = Math.max(maxX, table.x + 280); // table width
-      maxY = Math.max(maxY, table.y + table.fields.length * 36 + 40); // header + fields
+      maxY = Math.max(maxY, table.y + tableHeight);
     });
 
-    // Add padding
-    minX -= 50;
-    minY -= 50;
-    maxX += 50;
-    maxY += 50;
+    // Add padding around content
+    const padding = 100;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
 
     const diagramWidth = diagramRef.current.clientWidth;
     const diagramHeight = diagramRef.current.clientHeight;
@@ -1256,20 +1912,39 @@ export const DbmlEditor = React.forwardRef<
       return;
     }
 
-    // Calculate scale to fit
-    const scaleX = diagramWidth / contentWidth;
-    const scaleY = diagramHeight / contentHeight;
-    const newScale = Math.min(scaleX, scaleY, 1.0); // Cap at 1.0 to prevent too much zoom
+    // Calculate scale to fit with conservative limits
+    const scaleX = (diagramWidth * 0.85) / contentWidth; // Use 85% of available space
+    const scaleY = (diagramHeight * 0.85) / contentHeight;
+    let newScale = Math.min(scaleX, scaleY);
+    
+    // VERY conservative scale limits to prevent tiny diagrams
+    if (tables.length > 50) {
+      newScale = Math.max(0.6, Math.min(1.2, newScale)); // Large diagrams: min 0.6
+    } else if (tables.length > 20) {
+      newScale = Math.max(0.7, Math.min(1.2, newScale)); // Medium diagrams: min 0.7
+    } else {
+      newScale = Math.max(0.8, Math.min(1.5, newScale)); // Small diagrams: min 0.8
+    }
+
+    console.log(`🎯 fitToView: content ${contentWidth}x${contentHeight}, viewport ${diagramWidth}x${diagramHeight}, calculated scale ${newScale}`);
 
     setScale(newScale);
 
-    // Scroll to center
+    // Center the content
     setTimeout(() => {
       if (diagramRef.current) {
-        diagramRef.current.scrollLeft = (minX * newScale);
-        diagramRef.current.scrollTop = (minY * newScale);
+        const centerX = minX + contentWidth / 2;
+        const centerY = minY + contentHeight / 2;
+        
+        const scrollLeft = Math.max(0, centerX * newScale - diagramWidth / 2);
+        const scrollTop = Math.max(0, centerY * newScale - diagramHeight / 2);
+        
+        diagramRef.current.scrollLeft = scrollLeft;
+        diagramRef.current.scrollTop = scrollTop;
+        
+        console.log(`🎯 Centered at scroll: ${scrollLeft}, ${scrollTop}`);
       }
-    }, 50);
+    }, 100);
   };
 
   // Toggle line style
@@ -1522,6 +2197,11 @@ export const DbmlEditor = React.forwardRef<
     if (editorRef.current) {
       editorRef.current.layout();
     }
+
+    // Force re-render diagram after resize
+    setTimeout(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 300);
   }, [handleResizerMouseMove]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -1581,25 +2261,63 @@ export const DbmlEditor = React.forwardRef<
   const autoLayoutTables = () => {
     if (tables.length === 0) return;
     
+    console.log('🎯 Manual Auto-layout triggered by user...');
     const optimizedTables = calculateOptimalLayout(tables, relationships);
     setTables(optimizedTables);
+    
+    // Set a reasonable scale instead of auto-fitting for large diagrams
+    setTimeout(() => {
+      if (optimizedTables.length > 50) {
+        // For very large diagrams, use reasonable scale
+        setScale(0.5);
+      } else if (optimizedTables.length > 20) {
+        // For large diagrams, use better scale
+        setScale(0.7);
+      } else if (optimizedTables.length > 10) {
+        setScale(0.8);
+      } else {
+        // Only auto-fit for very small diagrams
+        if (optimizedTables.length <= 6) {
+          fitToView();
+        } else {
+          setScale(0.9); // Larger scale for medium diagrams
+        }
+      }
+    }, 200);
   };
 
-  // Handle click on error indicator to navigate to first error
+  // Reset pane ratio to 50-50
+  const resetPaneRatio = () => {
+    setPaneRatio(0.5);
+    setIsEditorVisible(true);
+    
+    // Refresh editor layout and fit diagram
+    if (editorRef.current) {
+      setTimeout(() => {
+        editorRef.current?.layout();
+        // Don't auto-fit - let user control zoom manually
+      }, 300);
+    }
+  };
+
+  // Handle click on error indicator to navigate to first error/warning
   const handleErrorIndicatorClick = () => {
-    if (validationErrors.length > 0 && editorRef.current) {
-      // Get all error markers
+    if ((validationErrors.length > 0 || validationWarnings.length > 0) && editorRef.current) {
+      // Get all markers (errors and warnings)
       const model = editorRef.current.getModel();
       if (model) {
         const markers = monaco.editor.getModelMarkers({ resource: model.uri, owner: 'dbml-validation' });
         if (markers.length > 0) {
-          const firstMarker = markers[0];
-          // Navigate to first error
+          // Prioritize errors over warnings
+          const errorMarkers = markers.filter(m => m.severity === monaco.MarkerSeverity.Error);
+          const firstMarker = errorMarkers.length > 0 ? errorMarkers[0] : markers[0];
+          
+          // Navigate to first issue
           editorRef.current.setPosition({
             lineNumber: firstMarker.startLineNumber,
             column: firstMarker.startColumn
           });
-          // Focus editor and select the error range
+          // Focus editor and select the issue range
           editorRef.current.focus();
           editorRef.current.setSelection({
             startLineNumber: firstMarker.startLineNumber,
@@ -1647,17 +2365,17 @@ export const DbmlEditor = React.forwardRef<
     };
   };
 
-  // Fit diagram to view when tables are loaded
-  useEffect(() => {
-    if (tables.length > 0) {
-      // Add a small delay to ensure the diagram is rendered
-      const timer = setTimeout(() => {
-        fitToView();
-      }, 300);
+  // DISABLED: Don't auto-fit diagram when tables are loaded to prevent shrinking
+  // useEffect(() => {
+  //   if (tables.length > 0) {
+  //     // Add a small delay to ensure the diagram is rendered
+  //     const timer = setTimeout(() => {
+  //       fitToView();
+  //     }, 300);
 
-      return () => clearTimeout(timer);
-    }
-  }, [tables.length, showDiagramOnly]);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [tables.length, showDiagramOnly]);
 
   // Expose zoom methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -1735,39 +2453,57 @@ export const DbmlEditor = React.forwardRef<
             <StatusBarLeft>
               <Tooltip
                 title={
-                  validationErrors.length > 0 ? (
+                  validationErrors.length > 0 || validationWarnings.length > 0 ? (
+                    <div>
+                      {validationErrors.length > 0 && (
                     <div>
                       <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#f87171' }}>
-                        Validation Errors ({validationErrors.length}):
+                            Errors ({validationErrors.length}):
                       </div>
                       {validationErrors.map((error, index) => (
-                        <div key={index} style={{ fontSize: '11px', marginBottom: '2px' }}>
+                            <div key={index} style={{ fontSize: '11px', marginBottom: '2px', color: '#f87171' }}>
                           • {error}
                         </div>
                       ))}
+                        </div>
+                      )}
+                      {validationWarnings.length > 0 && (
+                        <div style={{ marginTop: validationErrors.length > 0 ? '8px' : '0' }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#facc15' }}>
+                            Warnings ({validationWarnings.length}):
+                          </div>
+                          {validationWarnings.map((warning, index) => (
+                            <div key={index} style={{ fontSize: '11px', marginBottom: '2px', color: '#facc15' }}>
+                              • {warning}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div style={{ fontSize: '10px', marginTop: '4px', color: '#94a3b8' }}>
-                        Click to navigate to first error
+                        Click to navigate to first issue
                       </div>
                     </div>
                   ) : (
                     <div style={{ color: '#4ade80' }}>
-                      No validation errors found ✅
+                      No issues found ✅
                     </div>
                   )
                 }
                 placement="top"
               >
                 <ErrorIndicator 
-                  hasErrors={validationErrors.length > 0}
-                  onClick={validationErrors.length > 0 ? handleErrorIndicatorClick : undefined}
+                  hasErrors={validationErrors.length > 0 || validationWarnings.length > 0}
+                  onClick={validationErrors.length > 0 || validationWarnings.length > 0 ? handleErrorIndicatorClick : undefined}
                 >
                   <span className="error-icon">
-                    {validationErrors.length > 0 ? '❌' : '✅'}
+                    {validationErrors.length > 0 ? '❌' : validationWarnings.length > 0 ? '⚠️' : '✅'}
                   </span>
                   <span>
                     {validationErrors.length > 0 
                       ? `${validationErrors.length} error${validationErrors.length > 1 ? 's' : ''}`
-                      : 'No errors'
+                      : validationWarnings.length > 0
+                        ? `${validationWarnings.length} warning${validationWarnings.length > 1 ? 's' : ''}`
+                        : 'No issues'
                     }
                   </span>
                 </ErrorIndicator>
@@ -1798,8 +2534,8 @@ export const DbmlEditor = React.forwardRef<
             </Resizer>
           </>
         )}
-        <DiagramPane width={'100%'}>
-          <DiagramContainer ref={diagramRef} key={`diagram-${forceUpdate}`}>
+        <DiagramPane width={showDiagramOnly ? '100%' : (isEditorVisible ? `${(1 - paneRatio) * 100}%` : '100%')}>
+          <DiagramContainer ref={diagramRef} data-diagram-container key={`diagram-${forceUpdate}`}>
             <DiagramCanvas scale={scale} key={`canvas-${forceUpdate}`}>
               <div style={{
                 position: 'relative',
@@ -1818,8 +2554,8 @@ export const DbmlEditor = React.forwardRef<
                 minWidth: '100%',
                 minHeight: '100%'
               }}>
-                {/* Relationship lines */}
-                <RelationshipLine>
+              {/* Relationship lines */}
+              <RelationshipLine>
                 {relationships.map((rel, index) => {
                   const coords = getRelationshipCoordinates(rel);
                   if (!coords) return null;
