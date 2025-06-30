@@ -43,9 +43,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Try to get user from localStorage first
           let userInfo = authService.getCurrentUser();
           
-          // If no user in localStorage, fetch from API
+          // If no user in localStorage, fetch from API using dbdocsApiService
           if (!userInfo) {
-            userInfo = await authService.fetchUserInfo();
+            try {
+              const { default: dbdocsApiService } = await import('../services/dbdocsApiService');
+              userInfo = await dbdocsApiService.getCurrentUser();
+              authService.saveUser(userInfo);
+            } catch (error) {
+              console.error('Failed to fetch user info:', error);
+              userInfo = null;
+            }
           }
           
           setState({
@@ -142,10 +149,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      // Fetch user info from API using AuthService
-      const userInfo = await authService.fetchUserInfo();
+      // Fetch user info from API using dbdocsApiService
+      const { default: dbdocsApiService } = await import('../services/dbdocsApiService');
+      const userInfo = await dbdocsApiService.getCurrentUser();
       
       if (userInfo) {
+        // Save user to authService for caching
+        authService.saveUser(userInfo);
+        
         setState({
           user: userInfo,
           loading: false,

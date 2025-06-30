@@ -1,6 +1,6 @@
 import { ItemType, MenuItemType } from 'antd/es/menu/interface';
 import { compact } from 'lodash';
-import { safeApiClient } from './axios';
+import httpClient from './httpClient';
 import authService from './authService';
 import { userService } from './userService';
 import { apiService } from './apiService';
@@ -71,12 +71,12 @@ export const globalService = {
   //   }
   // },
   getProfile: async () => {
-    const res = await safeApiClient.get<IUserInfo>(`/auth/profile`);
+    const res = await httpClient.get<IUserInfo>(`/auth/profile`);
     if (!res) throw new Error('Không thể lấy profile');
     return res.data;
   },
   getMenu: async () => {
-    const res = await safeApiClient.get<MenuObjectItem[]>(`/auth/menu/flat`);
+    const res = await httpClient.get<MenuObjectItem[]>(`/auth/menu/flat`);
     if (!res) throw new Error('Không thể lấy menu');
     return res.data;
   },

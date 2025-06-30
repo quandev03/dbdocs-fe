@@ -1,4 +1,5 @@
 import authService from './authService';
+import httpClient from './httpClient';
 import { API_CONFIG } from '../config';
 
 const API_BASE_URL = API_CONFIG.BASE_URL;
@@ -34,18 +35,8 @@ export const userService = {
     }
 
     try {
-      const token = authService.getToken();
-      const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get user info');
-      }
-
-      const userInfo = await response.json();
+      const response = await httpClient.get('/api/v1/users/me');
+      const userInfo = response.data;
 
       // Cache the user info in localStorage
       localStorage.setItem('user_info', JSON.stringify(userInfo));
@@ -133,75 +124,29 @@ export const userService = {
   },
 
   /**
-   * Get user info by userId
+   * Get user info by userId (with auto refresh token)
    */
   getUserById: async (userId: string): Promise<{ userId: string; fullName: string; email: string; avatarUrl: string; provider: number } | null> => {
     try {
-      // Get authorization header from authService
-      const authHeader = authService.getAuthorizationHeader() || '';
-
       console.log(`Fetching user with ID: ${userId}`);
-      console.log(`Request URL: ${API_BASE_URL}/api/v1/users/${userId}`);
-      console.log('Auth header available:', !!authHeader);
-
-      const requestOptions = {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': authHeader,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        redirect: 'follow' as RequestRedirect
-      };
-
-      console.log('Request options:', JSON.stringify({
-        ...requestOptions,
-        headers: {
-          ...requestOptions.headers,
-          'Authorization': authHeader ? '[HIDDEN]' : ''
-        }
-      }, null, 2));
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}`, requestOptions);
-
-      console.log('Response status:', response.status);
-      console.log('Response status text:', response.statusText);
-
-      // Get headers in a way that's compatible with all environments
-      const responseHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-      console.log('Response headers:', JSON.stringify(responseHeaders, null, 2));
-      console.log('Response redirected:', response.redirected);
-      console.log('Response URL:', response.url);
-
-      // If we get a redirect to the system user, use that endpoint instead
-      if (response.status === 302 || (response.redirected && response.url.includes('/system'))) {
-        console.log('User redirect detected, fetching system user instead');
-        return await userService.getSystemUser();
-      }
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`User with ID ${userId} not found, falling back to system user`);
-          return await userService.getSystemUser();
-        } else if (response.status === 401) {
-          console.warn('Unauthorized, trying system user as fallback');
-          return await userService.getSystemUser();
-        } else if (response.status === 302) {
-          console.log('302 redirect detected, fetching system user');
-          return await userService.getSystemUser();
-        }
-        throw new Error(`Failed to get user info: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      
+      const response = await httpClient.get(`/api/v1/users/${userId}`);
+      const data = response.data;
+      
       console.log('Response data:', JSON.stringify(data, null, 2));
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting user by id:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        console.warn(`User with ID ${userId} not found, falling back to system user`);
+        return await userService.getSystemUser();
+      } else if (error.response?.status === 401) {
+        console.warn('Unauthorized, trying system user as fallback');
+        return await userService.getSystemUser();
+      }
+      
       // As a fallback, try to get the system user
       try {
         console.log('Falling back to system user after error');
@@ -214,47 +159,16 @@ export const userService = {
   },
 
   /**
-   * Get system user information
+   * Get system user information (with auto refresh token)
    * Uses the special system user endpoint for projects created by the system
    */
   getSystemUser: async (): Promise<{ userId: string; fullName: string; email: string; avatarUrl: string; provider: number } | null> => {
     try {
-      // Get authorization header from authService
-      const authHeader = authService.getAuthorizationHeader() || '';
-
       console.log('Fetching system user');
-      console.log(`Request URL: ${API_BASE_URL}/api/v1/users/system`);
-      console.log('Auth header available:', !!authHeader);
-
-      const requestOptions = {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': authHeader,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        redirect: 'follow' as RequestRedirect
-      };
-
-      console.log('Request options for system user:', JSON.stringify({
-        ...requestOptions,
-        headers: {
-          ...requestOptions.headers,
-          'Authorization': authHeader ? '[HIDDEN]' : ''
-        }
-      }, null, 2));
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/users/system`, requestOptions);
-
-      console.log('System user response status:', response.status);
-      console.log('System user response status text:', response.statusText);
-
-      if (!response.ok) {
-        throw new Error(`Failed to get system user info: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      
+      const response = await httpClient.get('/api/v1/users/system');
+      const data = response.data;
+      
       console.log('System user response data:', JSON.stringify(data, null, 2));
       return data;
     } catch (error) {

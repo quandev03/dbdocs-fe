@@ -1,4 +1,4 @@
-import { safeApiClient } from '../../../services/axios';
+import httpClient from '../../../services/httpClient';
 import axios from 'axios';
 import {
   ExportRequest,
@@ -33,7 +33,7 @@ export const LayoutService = {
     return res;
   },
   getNotification: async (params: INotificationParams) => {
-    const res = await safeApiClient.get<IPage<INotification>>(
+    const res = await httpClient.get<IPage<INotification>>(
       `/notifications`,
       { params }
     );
@@ -41,21 +41,21 @@ export const LayoutService = {
     return res.data;
   },
   readOneNotification: async (id: string) => {
-    const res = await safeApiClient.patch(`/notifications/${id}`);
+    const res = await httpClient.patch(`/notifications/${id}`);
     return res;
   },
   readAllNotification: async () => {
-    const res = await safeApiClient.patch(`/notifications`);
+    const res = await httpClient.patch(`/notifications`);
     return res;
   },
   getParams: async (type: string) => {
-    const res = await safeApiClient.get<IConfigParam[]>(
+    const res = await httpClient.get<IConfigParam[]>(
       `/application-config/get-application-config-active-by-type?type=${type}`
     );
     return res;
   },
   exportExcel: async ({ uri, params }: ExportRequest) => {
-    return safeApiClient.get<Blob>(uri, {
+    return httpClient.get<Blob>(uri, {
       params,
       responseType: 'blob',
     });

@@ -16,6 +16,7 @@ const AuthCallback: React.FC = () => {
       try {
         // Parse URL query parameters
         const token = searchParams.get('token');
+        const refreshToken = searchParams.get('refreshToken');
         const tokenType = searchParams.get('tokenType');
         const expiresIn = searchParams.get('expiresIn');
         const provider = searchParams.get('provider');
@@ -28,6 +29,7 @@ const AuthCallback: React.FC = () => {
         // Prepare token data
         const tokenData = {
           accessToken: token,
+          refreshToken: refreshToken || undefined,
           tokenType: tokenType || 'Bearer',
           expiresIn: expiresIn ? parseInt(expiresIn) : 86400000, // Default 24 hours
           provider: provider || undefined
@@ -35,14 +37,21 @@ const AuthCallback: React.FC = () => {
 
         console.log('Received OAuth callback with token data:', {
           ...tokenData,
-          accessToken: '***' // Hide token in logs
+          accessToken: '***', // Hide token in logs
+          refreshToken: refreshToken ? '***' : undefined // Hide refresh token in logs
         });
 
         // Save token to AuthService
         authService.saveToken(tokenData);
 
-        // Fetch user information
-        const userInfo = await authService.fetchUserInfo();
+        // Fetch user information using dbdocsApiService  
+        const { default: dbdocsApiService } = await import('../../services/dbdocsApiService');
+        const userInfo = await dbdocsApiService.getCurrentUser();
+        
+        // Save user to authService for caching
+        if (userInfo) {
+          authService.saveUser(userInfo);
+        }
 
         if (userInfo) {
           // Refresh auth context

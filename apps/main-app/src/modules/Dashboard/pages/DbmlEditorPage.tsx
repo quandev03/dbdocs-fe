@@ -177,7 +177,7 @@ export const DbmlEditorPage: React.FC = () => {
   const [publishSuccessModalVisible, setPublishSuccessModalVisible] = useState<boolean>(false);
   const [publishedUrl, setPublishedUrl] = useState<string>('');
   const [visibility, setVisibility] = useState<number>(1); // 1: Public, 2: Private , 3. Protected password
-  
+
   // Validation state
   const [isDbmlValid, setIsDbmlValid] = useState<boolean>(true);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -1071,8 +1071,9 @@ export const DbmlEditorPage: React.FC = () => {
                       </Text>
                     </div>
                   }
-                  description={item.content || t('editor.noDescription')}
+                  // description={item.content || t('editor.noDescription')}
                 />
+                <Text strong={true} style={{ fontSize: 14, marginTop: 4 }}>{`V${item.codeChangeLog}`}</Text>
               </List.Item>
             )}
           />

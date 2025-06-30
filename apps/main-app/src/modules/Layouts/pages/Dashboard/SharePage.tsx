@@ -206,7 +206,7 @@ const SharePage: React.FC = () => {
 
   const handleViewProject = (projectId: string) => {
     // Navigate to project details page
-    navigate(`/projects/${projectId}`);
+    navigate(`/projects/${projectId}/docs`);
   };
 
   const handleMenuItemClick = (menuKey: string) => {
@@ -215,7 +215,8 @@ const SharePage: React.FC = () => {
     // Handle navigation based on menu item
     switch(menuKey) {
       case 'api-tokens':
-        navigate('/settings/api-tokens');
+        message.info('Coming soon');
+        // navigate('/settings/api-tokens');
         break;
       case 'shared':
         navigate('/share');

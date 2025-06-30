@@ -4,7 +4,7 @@ import { Card, Typography, Button, Spin, Row, Col, Collapse, Select, Space, mess
 import { Editor, DiffEditor } from '@monaco-editor/react';
 import * as diff from 'diff';
 import { getProjectVersions, VersionInfo } from '../services/changelog.service';
-import axios from 'axios';
+import httpClient from '../../../services/httpClient';
 import { DownloadOutlined, CopyOutlined, CodeOutlined, ArrowLeftOutlined, TableOutlined, FieldNumberOutlined } from '@ant-design/icons';
 import { API_CONFIG } from '../../../config';
 import Logo from '../../../components/common/Logo';
@@ -426,17 +426,13 @@ const CodeComparePage: React.FC = () => {
     try {
       const token = localStorage.getItem('dbdocs_token');
 
-      const response = await axios.get(
-        `${API_CONFIG.BASE_URL}/api/v1/versions/compare`,
+      const response = await httpClient.get(
+        `/api/v1/versions/compare`,
         {
           params: {
             projectId,
             beforeVersion,
             currentVersion
-          },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Accept': 'application/json'
           }
         }
       );
@@ -503,19 +499,13 @@ const CodeComparePage: React.FC = () => {
 
       const token = localStorage.getItem('dbdocs_token');
 
-      const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/api/v1/versions/generate-ddl`,
+      const response = await httpClient.post(
+        `/api/v1/versions/generate-ddl`,
         {
           projectId,
           fromVersion: fromVersion.codeVersion,
           toVersion: toVersion.codeVersion,
           dialect: selectedDbType
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
         }
       );
 

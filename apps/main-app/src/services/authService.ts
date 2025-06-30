@@ -13,6 +13,7 @@ const { WIDTH, HEIGHT } = AUTH_CONFIG.POPUP;
 // TypeScript interfaces
 interface TokenData {
   accessToken: string;
+  refreshToken?: string;
   tokenType: string;
   expiresIn: number;
   provider?: string;
@@ -28,6 +29,7 @@ interface User {
 
 class AuthService {
   private readonly TOKEN_KEY = 'dbdocs_token';
+  private readonly REFRESH_TOKEN_KEY = 'dbdocs_refresh_token';
   private readonly USER_KEY = 'dbdocs_user';
   private readonly BACKEND_URL = API_BASE_URL;
 
@@ -40,6 +42,11 @@ class AuthService {
 
     localStorage.setItem(this.TOKEN_KEY, tokenData.accessToken);
     localStorage.setItem(TOKEN_TYPE, tokenData.tokenType || 'Bearer');
+
+    // Save refresh token if provided
+    if (tokenData.refreshToken) {
+      localStorage.setItem(this.REFRESH_TOKEN_KEY, tokenData.refreshToken);
+    }
 
     if (tokenData.expiresIn) {
       localStorage.setItem(EXPIRES_IN, tokenData.expiresIn.toString());
@@ -55,6 +62,11 @@ class AuthService {
   // Get token from localStorage
   getToken(): string | null {
     return localStorage.getItem(this.TOKEN_KEY);
+  }
+
+  // Get refresh token from localStorage
+  getRefreshToken(): string | null {
+    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
   }
 
   // Get authorization header for API requests
@@ -85,6 +97,7 @@ class AuthService {
   // Logout user
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(TOKEN_TYPE);
     localStorage.removeItem(EXPIRES_IN);
     localStorage.removeItem(EXPIRY_TIME);
@@ -163,21 +176,52 @@ class AuthService {
     }
   }
 
-  // Fetch user info from API
-  async fetchUserInfo(): Promise<User | null> {
+  // Refresh access token using refresh token
+  async refreshAccessToken(): Promise<{ accessToken: string; refreshToken: string; tokenType: string; expiresIn: number } | null> {
+    const refreshToken = this.getRefreshToken();
+    
+    if (!refreshToken) {
+      console.error('No refresh token available');
+      return null;
+    }
+
     try {
-      const response = await fetch(`${this.BACKEND_URL}/api/v1/users/me`, {
+      const response = await fetch(`${this.BACKEND_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
         headers: {
-          'Authorization': this.getAuthorizationHeader() || '',
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch user info');
+        throw new Error('Failed to refresh token');
       }
 
-      const userInfo = await response.json();
+      const tokenData = await response.json();
+      
+      // Save new tokens
+      this.saveToken({
+        accessToken: tokenData.accessToken,
+        refreshToken: tokenData.refreshToken,
+        tokenType: tokenData.tokenType,
+        expiresIn: tokenData.expiresIn,
+      });
+
+      return tokenData;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
+    }
+  }
+
+  // Fetch user info from API using httpClient (with auto refresh)
+  async fetchUserInfo(): Promise<User | null> {
+    try {
+      // Import httpClient dynamically to avoid circular dependency
+      const { default: httpClient } = await import('./httpClient');
+      const response = await httpClient.get('/api/v1/users/me');
+      const userInfo = response.data;
       this.saveUser(userInfo);
       return userInfo;
     } catch (error) {
