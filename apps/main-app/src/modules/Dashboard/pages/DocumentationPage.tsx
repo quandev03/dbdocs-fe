@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import authService from '../../../services/authService';
+import dbdocsApiService from '../../../services/dbdocsApiService';
 import { API_CONFIG } from '../../../config';
 import {
   Layout,
@@ -68,7 +69,7 @@ import { DbmlEditor } from '../components/DbmlEditor';
 import MonacoEditor from '@monaco-editor/react';
 import * as diff from 'diff';
 import CodeCompareModal from './CodeCompareModal';
-import axios from 'axios';
+import httpClient from '../../../services/httpClient';
 import Logo from '../../../components/common/Logo';
 import SettingsPopup from '../../../components/SettingsPopup';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -194,6 +195,27 @@ interface ShareFormValues {
   passwordShare: string | null;
 }
 
+interface DbdocsUser {
+  userId: string;
+  email: string;
+  fullName: string;
+  avatarUrl: string;
+  provider: number;
+}
+
+// Utility function to get user data from localStorage
+const getUserFromLocalStorage = (): DbdocsUser | null => {
+  try {
+    const userData = localStorage.getItem('dbdocs_user');
+    if (userData) {
+      return JSON.parse(userData) as DbdocsUser;
+    }
+  } catch (error) {
+    console.error('Error parsing user data from localStorage:', error);
+  }
+  return null;
+};
+
 const DocumentationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('wiki');
   const [project, setProject] = useState<ProjectDetails | null>(null);
@@ -247,7 +269,20 @@ const DocumentationPage: React.FC = () => {
     const fetchCurrentUser = async () => {
       try {
         console.log("get data user");
-        const currentUser = await authService.getCurrentUser();
+        
+        // First try to get user data from localStorage
+        const localUser = getUserFromLocalStorage();
+        if (localUser && isMounted) {
+          console.log("Using user data from localStorage:", localUser);
+          setCreatorInfo({
+            fullName: localUser.fullName || localUser.email || 'Unknown User',
+            avatarUrl: localUser.avatarUrl || '',
+          });
+          return;
+        }
+
+        // Fallback to API if localStorage is empty
+        const currentUser = await dbdocsApiService.getCurrentUser();
 
         console.log("currentUser", currentUser);
 
@@ -1195,8 +1230,9 @@ const DocumentationPage: React.FC = () => {
                 // Log the createdDate to check its value
                 console.log(`Activity ${index + 1} createdDate:`, item.createdDate, typeof item.createdDate);
 
-                // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators
-                const avatarUrl = item.creatorAvatarUrl || (userInfo?.avatarUrl || '');
+                // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators hoặc localStorage
+                const localUser = getUserFromLocalStorage();
+                const avatarUrl = item.creatorAvatarUrl || (userInfo?.avatarUrl || localUser?.avatarUrl || '');
 
                 // Phân tích thông tin thay đổi từ diffChange
                 const changes = parseDiffChange(item.diffChange);
@@ -1542,8 +1578,9 @@ const DocumentationPage: React.FC = () => {
               const userId = item.createdBy || item.changeLog?.createdBy;
               const userInfo = userId ? versionCreators[userId] : null;
 
-              // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators
-              const avatarUrl = item.changeLog?.creatorAvatarUrl || (userInfo?.avatarUrl || '');
+              // Ưu tiên sử dụng avatar từ response trước, sau đó mới dùng từ versionCreators hoặc localStorage
+              const localUser = getUserFromLocalStorage();
+              const avatarUrl = item.changeLog?.creatorAvatarUrl || (userInfo?.avatarUrl || localUser?.avatarUrl || '');
 
               // Phân tích thông tin thay đổi từ diffChange
               const changes = parseDiffChange(item.diffChange);
@@ -2407,15 +2444,9 @@ const DocumentationPage: React.FC = () => {
         passwordShare: showPasswordField ? sharePassword : null
       };
 
-      const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/api/v1/projects/sharing/${project.projectId}`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
+      const response = await httpClient.post(
+        `/api/v1/projects/sharing/${project.projectId}`,
+        payload
       );
 
       if (response.data && response.data.linkDocs) {
@@ -2448,16 +2479,10 @@ const DocumentationPage: React.FC = () => {
   // Add this function to handle shared project access
   const handleSharedProjectAccess = async (projectId: string, shareType: number, password: string | null = null) => {
     try {
-      const response = await axios.post(
-                  `${API_CONFIG.BASE_URL}/api/v1/projects/shared/${projectId}`,
+      const response = await httpClient.post(
+        `/api/v1/projects/shared/${projectId}`,
         {
-            passwordShare: password || ""
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('dbdocs_token')}`
-          }
+          passwordShare: password || ""
         }
       );
 

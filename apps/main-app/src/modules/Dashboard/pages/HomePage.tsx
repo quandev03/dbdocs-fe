@@ -196,7 +196,7 @@ const HomePage: React.FC = () => {
 
   const handleViewProject = (projectId: string) => {
     // Navigate to project details page
-    navigate(`/projects/${projectId}`);
+    navigate(`/projects/${projectId}/docs`);
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -225,7 +225,8 @@ const HomePage: React.FC = () => {
     // Handle navigation based on menu item
     switch(menuKey) {
       case 'api-tokens':
-        navigate('/settings/api-tokens');
+        message.info('Coming soon');
+        // navigate('/settings/api-tokens');
         break;
       default:
         // Default behavior stays on the current page

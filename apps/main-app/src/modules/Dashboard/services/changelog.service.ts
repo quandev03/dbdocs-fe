@@ -1,4 +1,4 @@
-import axios from 'axios';
+import httpClient from '../../../services/httpClient';
 import { API_CONFIG } from '../../../config';
 
 export interface Changelog {
@@ -67,14 +67,8 @@ export const getLatestChangelog = async (projectId: string): Promise<Changelog |
   try {
     const token = localStorage.getItem('dbdocs_token');
 
-    const response = await axios.get(
-      `${API_CONFIG.BASE_URL}/api/v1/changelogs/latest/project/${projectId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await httpClient.get(
+      `/api/v1/changelogs/latest/project/${projectId}`
     );
 
     // Nếu status là 204 (No Content), trả về null
@@ -98,14 +92,8 @@ export const getProjectVersions = async (projectId: string): Promise<VersionInfo
   try {
     const token = localStorage.getItem('dbdocs_token');
 
-    const response = await axios.get(
-      `${API_CONFIG.BASE_URL}/api/v1/versions/project/${projectId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await httpClient.get(
+      `/api/v1/versions/project/${projectId}`
     );
 
     return response.data || [];
@@ -125,14 +113,8 @@ export const getVersionContent = async (projectId: string, versionId: string): P
   try {
     const token = localStorage.getItem('token');
 
-    const response = await axios.get(
-      `${API_CONFIG.BASE_URL}/api/v1/changelogs/project/${projectId}/version/${versionId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await httpClient.get(
+      `/api/v1/changelogs/project/${projectId}/version/${versionId}`
     );
 
     // Nếu status là 204 (No Content), trả về null

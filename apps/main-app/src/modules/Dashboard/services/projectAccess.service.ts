@@ -1,4 +1,4 @@
-import axios from 'axios';
+import httpClient from '../../../services/httpClient';
 import { API_CONFIG } from '../../../config';
 import authService from '../../../services/authService';
 
@@ -28,14 +28,8 @@ export const checkProjectPermission = async (projectId: string): Promise<Permiss
       return { permissionLevel: PermissionLevel.DENIED, code: PermissionLevel.DENIED };
     }
 
-    const response = await axios.get(
-      `${API_CONFIG.BASE_URL}/api/v1/project-access/permission-level/${projectId}`,
-      {
-        headers: {
-          Authorization: authHeader,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await httpClient.get(
+      `/api/v1/project-access/permission-level/${projectId}`
     );
 
     return response.data;

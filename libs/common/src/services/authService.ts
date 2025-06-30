@@ -1,4 +1,5 @@
 import { API_CONFIG, AUTH_CONFIG } from '@main-app/config';
+// Note: This is a legacy service, consider using httpClient from main-app instead
 const API_BASE_URL =  API_CONFIG.BASE_URL;
 export const authService = {
   // Check if token exists in localStorage
